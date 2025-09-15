@@ -1,0 +1,565 @@
+/* 基础样式 */
+body {
+    font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f7fa;
+    color: #333;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+}
+
+h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #3498db;
+}
+
+/* 布局样式 */
+.layout {
+    display: flex;
+    gap: 20px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.student-panel {
+    flex: 0 0 300px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    padding: 15px;
+    overflow-y: auto;
+}
+
+.content-panel {
+    flex: 1;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 搜索框样式 */
+.search-box {
+    margin-bottom: 15px;
+    position: sticky;
+    top: 0;
+    background: white;
+    padding: 10px 0;
+    z-index: 10;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+/* 面板操作按钮样式 */
+.panel-actions {
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px dashed #eee;
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.panel-actions label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}
+
+.panel-actions button {
+    padding: 6px 12px;
+    background-color: #f0f4f8;
+    border: 1px solid #d6e4f0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.panel-actions button:hover {
+    background-color: #e1e9f2;
+}
+
+/* 学生列表样式 */
+.student-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.student-group {
+    padding-bottom: 6px;
+    background-color: #f7f8fa;
+    padding: 2px 10px;
+}
+
+.group-title {
+    margin: 0 0 0 0;
+    padding: 2px 6px;
+    color: #91c3e4;
+    font-size: 12px;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.group-title::after {
+    content: attr(data-count);
+    font-size: 12px;
+    background-color: #3498db;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+}
+
+.student-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.student-item {
+    display: inline-block;
+    padding: 8px 12px;
+    background-color:#347ed8;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #ffffff;
+    font-size: 14px;
+    transition: all 0.2s;
+    border: 1px solid #d6e4f0;
+}
+
+.student-item:hover {
+    background-color: #218d38;
+    transform: translateY(-1px);
+    color: #ffffff;
+}
+
+.student-item.active {
+    background-color: #3498db;
+    color: white;
+    border-color: #2980b9;
+    font-weight: bold;
+}
+
+/* 题目内容样式 */
+.student-header {
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #eee;
+}
+
+.student-header h2 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.questions-container {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.question {
+    padding: 20px;
+    border-radius: 6px;
+    background-color: #f9fbfd;
+    border-left: 4px solid #3498db;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.question-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    color: #7f8c8d;
+}
+
+.question-id {
+    font-weight: bold;
+}
+
+.difficulty {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.difficulty.easy {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.difficulty.medium {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.difficulty.hard {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.answer-content {
+    margin: 2px 0;
+    font-size: 14px;
+}
+
+.question-content {
+    margin: 2px 0;
+    font-size: 14px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.question-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.question-content h4,
+.answer-content h4 {
+    margin: 0 0 2px 0;
+    color: #3498db;
+    font-size: 16px;
+}
+
+.question-content img {
+    max-width: 30%;
+    height: auto;
+    margin: 0px auto;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.html-content {
+    padding: 2px;
+    background-color: #fff;
+    border: 1px solid #eaeff5;
+    border-radius: 5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.html-content table {
+    border-collapse: collapse;
+    width: auto;
+    margin: 10px 0;
+    display: inline-table;
+}
+
+.html-content table,
+.html-content th,
+.html-content td {
+    border: 1px solid #ddd;
+}
+
+.html-content th,
+.html-content td {
+    padding: 8px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.html-content th {
+    background-color: #f2f2f2;
+}
+
+/* 欢迎信息和空状态 */
+.welcome-message,
+.no-questions {
+    text-align: center;
+    padding: 50px 20px;
+    color: #7f8c8d;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.welcome-message h2 {
+    color: #3498db;
+    margin-bottom: 10px;
+}
+
+/* 响应式设计 */
+@media (max-width: 992px) {
+    .layout {
+        flex-direction: column;
+    }
+
+    .student-panel {
+        flex: 0 0 auto;
+        max-height: 200px;
+    }
+
+    .content-panel {
+        flex: 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .question-content {
+        flex-direction: column;
+    }
+
+    .question-content img {
+        max-width: 100%;
+    }
+
+    .student-group {
+        margin-bottom: 10px;
+    }
+}
+
+.marked-sequence {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+}
+
+.export-btn {
+    margin-top: 10px;
+    padding: 5px 10px;
+    background-color: #46a249;
+    color: rgb(255, 255, 255);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.export-btn:hover {
+    background-color: #45a049;
+}
+
+.sequence-item {
+    padding: 5px;
+    cursor: pointer;
+}
+
+.sequence-item:hover {
+    background-color: #f0f0f0;
+}
+    .toast-notification {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #333;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 4px;
+        z-index: 1000;
+        opacity: 0.9;
+        transition: opacity 0.3s;
+    }
+    
+    .toast-notification.fade-out {
+        opacity: 0;
+    }
+    
+    .copy-btn {
+        transition: all 0.2s;
+    }
+    
+    .copy-btn:hover {
+        background-color: #0b7dda !important;
+        transform: translateY(-1px);
+    }
+    
+    .copy-btn:active {
+        transform: translateY(0);
+    }
+    
+    .edit-btn {
+        transition: all 0.2s;
+    }
+    
+    .edit-btn:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+    
+    .edit-btn:active {
+        transform: translateY(0);
+    }
+    
+    .toolbar button {
+        transition: all 0.2s;
+    }
+    
+    .toolbar button:hover {
+        transform: translateY(-1px);
+    }
+    
+    .toolbar button:active {
+        transform: translateY(0);
+    }
+            .date-picker {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        .date-picker label {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .date-picker input {
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .date-picker button {
+            margin-left: 10px;
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .date-picker button:hover {
+            background-color: #45a049;
+        }
+        
+        /* 新增的评分样式 */
+        .feedback-container {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+            gap: 10px;
+        }
+        .feedback-input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .save-feedback {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .save-feedback:hover {
+            background-color: #45a049;
+        }
+        .score-select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        /* 新增编辑模式样式 */
+        .edit-mode {
+            border: 2px solid #4CAF50;
+            background-color: #f9f9f9;
+        }
+        
+        .editable-content {
+            border: 1px solid #ddd;
+            padding: 10px;
+            min-height: 100px;
+            margin: 10px 0;
+            background-color: white;
+            outline: none;
+        }
+        
+        .editable-content:focus {
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+        
+        .toolbar {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .toolbar button {
+            padding: 6px 12px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #555;
+            color: white;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        
+        .toolbar button:hover {
+            background-color: #333;
+        }
+        
+        .toolbar small {
+            color: #666;
+        }
+        
+        .toolbar-separator {
+            width: 1px;
+            height: 20px;
+            background-color: #999;
+            margin: 0 5px;
+        }
+        
+        .edit-controls {
+            margin-top: 15px;
+            text-align: right;
+        }
+        
+        .edit-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .save-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .cancel-btn {
+            background-color: #6c757d;
+            color: white;
+            margin-left: 10px;
+        }

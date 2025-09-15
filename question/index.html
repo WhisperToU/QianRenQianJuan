@@ -1,0 +1,1339 @@
+<?php
+// 优化了version9：给题目添加了一个删除按钮
+?>
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>题目管理系统</title>
+    <style>
+        /* 基础样式 */
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        /* 过滤器和表单样式 */
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        select,
+        input,
+        button,
+        textarea {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        /* 按钮样式 */
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            align-self: flex-end;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        .delete-btn {
+    background-color: #dc3545 !important;
+}
+ 
+.delete-btn:hover {
+    background-color: #c82333 !important;
+}
+
+        /* 题目卡片样式 */
+        .questions-list {
+            margin-top: 20px;
+        }
+
+        .question-card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #fff;
+        }
+
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+/* 题目卡片根据难度显示不同背景色 */
+.question-card.difficulty-easy  {
+    background-color: #e8f5e9; /* 浅绿色 */
+    border-left: 4px solid #4CAF50; /* 左侧绿色边框 */
+}
+ 
+.question-card.difficulty-medium  {
+    background-color: #fff8e1; /* 浅黄色 */
+    border-left: 4px solid #ffc107; /* 左侧黄色边框 */
+}
+        .difficulty-easy {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .difficulty-medium {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .topic {
+            font-style: italic;
+            color: #6c757d;
+        }
+
+        .question-id {
+            font-weight: bold;
+            color: #333;
+            margin-right: 10px;
+        }
+
+        /* 题目内容区域 */
+        .question-content-wrapper {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin: 15px 0;
+            align-items: flex-start;
+        }
+
+        .question-text,
+        .original-data-container {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        /* 图片容器样式（无边框版本） */
+        .question-image-container {
+            flex: 1;
+            min-width: 200px;
+            max-width: 20%;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .question-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            object-fit: contain;
+            background-color: transparent;
+        }
+
+        /* 答案区域样式 */
+        .answer-container {
+            margin-top: 15px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .answer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 5px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .answer-header h4 {
+            margin: 0;
+            color: #333;
+        }
+
+        .toggle-answer-btn {
+            background: none;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+            color: #6c757d;
+        }
+
+        .answer-content {
+            margin-top: 10px;
+            padding: 10px;
+            display: none;
+        }
+
+        .answer-content.show {
+            display: block;
+        }
+
+        /* 表格样式 */
+        .question-card table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .question-card table,
+        .question-card th,
+        .question-card td {
+            border: 1px solid #ddd;
+        }
+
+        .question-card th,
+        .question-card td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        /* 表单样式 */
+        .add-question-form {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .form-group textarea {
+            width: 100%;
+            min-height: 100px;
+        }
+
+        .form-actions {
+            text-align: right;
+            margin-top: 15px;
+        }
+
+        /* 悬浮按钮样式 */
+        .floating-btn {
+            position: fixed;
+            bottom: 130px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            font-size: 24px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .floating-btn:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+        }
+
+        .top-floating-btns {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .top-floating-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4285f4;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s;
+        }
+
+        .top-floating-btn:hover {
+            background-color: #3367d6;
+            transform: translateY(-2px);
+        }
+
+        .top-floating-btn:nth-child(1) {
+            background-color: #4285f4;
+        }
+
+        .top-floating-btn:nth-child(2) {
+            background-color: #34a853;
+        }
+
+        .top-floating-btn:nth-child(3) {
+            background-color: #fbbc05;
+        }
+
+        .top-floating-btn:nth-child(4) {
+            background-color: #ea4335;
+        }
+
+        .top-floating-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            opacity: 0.9;
+        }
+
+        /* 工具提示样式 */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* 编辑模式样式 */
+        .edit-mode {
+            border: 2px solid #4CAF50;
+            background-color: #f9f9f9;
+        }
+
+        .edit-controls {
+            display: none;
+        }
+
+        .edit-mode .edit-controls {
+            display: block;
+        }
+
+        .editable-content {
+            border: 1px solid #ddd;
+            padding: 10px;
+            min-height: 100px;
+            margin: 10px 0;
+            background-color: white;
+            outline: none;
+        }
+
+        .editable-content:focus {
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+/* 编辑按钮样式 - 默认隐藏 */
+.edit-btn {
+    display: none;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: all 0.2s;
+}
+ 
+.edit-btn:hover {
+    background-color: #5a6268;
+}
+ 
+/* 鼠标悬停在卡片上时显示编辑按钮 */
+.question-card:hover .edit-btn {
+    display: inline-block;
+}
+ 
+/* 编辑模式下始终显示编辑按钮 */
+.question-card.edit-mode  .edit-btn {
+    display: inline-block !important;
+}
+        .toolbar {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .toolbar button {
+            padding: 6px 12px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: #555;
+            color: white;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .toolbar button:hover {
+            background-color: #333;
+        }
+
+        .toolbar small {
+            color: #666;
+        }
+
+        .toolbar-separator {
+            width: 1px;
+            height: 20px;
+            background-color: #999;
+            margin: 0 5px;
+        }
+
+        /* 状态样式 */
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            background-color: #f8d7da;
+            border-radius: 4px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .question-image-container {
+                margin: 15px auto;
+            }
+
+            .question-content-wrapper {
+                flex-direction: column;
+            }
+
+            .question-text,
+            .original-data-container {
+                width: 100%;
+                max-width: 100%;
+            }
+        }
+    </style>
+
+</head>
+
+<body>
+    <!-- 新增顶部悬浮按钮 -->
+    <div class="top-floating-btns">
+        <button class="top-floating-btn tooltip" id="model-btn">模型
+        </button>
+        <button class="top-floating-btn tooltip" id="easy-questions-btn">出题
+        </button>
+        <button class="top-floating-btn tooltip" id="voice-input-btn">录题
+        </button>
+    </div>
+
+    <div class="container">
+        <h1>题目管理系统</h1>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label for="difficulty">难度</label>
+                <select id="difficulty">
+                    <option value="">全部</option>
+                    <option value="easy">简单</option>
+                    <option value="medium">中等</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="topic">主题</label>
+                <input type="text" id="topic" placeholder="输入主题关键词">
+            </div>
+
+            <button id="search-btn">搜索</button>
+            <button id="reset-btn">重置</button>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">加载中...</div>
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="questions-list" class="questions-list">
+            <!-- 题目将在这里动态加载 -->
+        </div>
+
+        <!-- 新增题目表单 (默认隐藏) -->
+        <div id="add-question-form" class="add-question-form" style="display: none;">
+            <h2>新增题目</h2>
+            <div class="form-group">
+                <label for="new-difficulty">难度</label>
+                <select id="new-difficulty" required>
+                    <option value="">请选择难度</option>
+                    <option value="easy">简单</option>
+                    <option value="medium">中等</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="new-topic">主题</label>
+                <input type="text" id="new-topic" placeholder="输入主题" required>
+            </div>
+            <div class="form-group">
+                <label for="new-question-text">题目内容</label>
+                <textarea id="new-question-text" placeholder="输入题目内容" required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="new-question-image">题目图片 (可选)</label>
+                <div style="display: flex; align-items: center;">
+                    <span style="padding: 8px 0; margin-right: 5px;">image/</span>
+                    <input type="text" id="new-question-image" placeholder="输入图片名称如1.1.1">
+                    <span style="padding: 8px 0; margin-left: 5px;">.jpg</span>
+                </div>
+                <small style="color: #666;">只需输入中间部分，如1.1.1</small>
+            </div>
+            <div class="form-group">
+                <label for="new-answer-text">答案</label>
+                <textarea id="new-answer-text" placeholder="输入答案" required></textarea>
+            </div>
+            <div class="form-actions">
+                <button id="cancel-add-btn" class="btn-secondary">取消</button>
+                <button id="submit-add-btn">提交</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 悬浮的新增题目按钮 -->
+    <button id="add-question-btn" class="floating-btn" title="新增题目">+</button>
+
+<script>
+    document.addEventListener('DOMContentLoaded',  function () {
+        const difficultySelect = document.getElementById('difficulty'); 
+        const topicInput = document.getElementById('topic'); 
+        const searchBtn = document.getElementById('search-btn'); 
+        const resetBtn = document.getElementById('reset-btn'); 
+        const addQuestionBtn = document.getElementById('add-question-btn'); 
+        const questionsList = document.getElementById('questions-list'); 
+        const loadingElement = document.getElementById('loading'); 
+        const errorElement = document.getElementById('error'); 
+ 
+        // 新增题目相关元素
+        const addQuestionForm = document.getElementById('add-question-form'); 
+        const newDifficulty = document.getElementById('new-difficulty'); 
+        const newTopic = document.getElementById('new-topic'); 
+        const newQuestionText = document.getElementById('new-question-text'); 
+        const newQuestionImage = document.getElementById('new-question-image'); 
+        const newAnswerText = document.getElementById('new-answer-text'); 
+        const submitAddBtn = document.getElementById('submit-add-btn'); 
+        const cancelAddBtn = document.getElementById('cancel-add-btn'); 
+ 
+        // 顶部悬浮按钮
+        const modelBtn = document.getElementById('model-btn'); 
+        const easyQuestionsBtn = document.getElementById('easy-questions-btn'); 
+        const voiceInputBtn = document.getElementById('voice-input-btn'); 
+ 
+        // 初始加载题目 
+        fetchQuestions();
+ 
+
+
+        // 顶部悬浮按钮点击事件
+        modelBtn.addEventListener('click',  function () {
+            animateButtonClick(this);
+            copyToClipboard("我是一个初中物理老师，我正在给学生出题，这道题属于什么物理模型？简要回答！不用回答这道题。");
+        });
+ 
+        easyQuestionsBtn.addEventListener('click',  function () {
+            animateButtonClick(this);
+            copyToClipboard("我是语文老师，正在给学生出试卷。我想使用同一个题干，出不一样难度的题目给学生分层练习。1、识别图片中的题干，作为题干信息；2、请给我出3道难度不同的图片中的题目，每道题下设问3个，尽量保证考察完知识点。");
+        });
+ 
+        voiceInputBtn.addEventListener('click',  function () {
+            animateButtonClick(this);
+            copyToClipboard("我现在要录入这个题的答案，但是打字和排版太慢了。要求：1、给出图片题目的答案。2、将答案用html格式排版，仅写标签片段，不写完整的html文档；3、如<p>表示题干；用<ol><li>表示题干下设的小问；用<sub><sup>上下角标；用<table><tr><td>表示题干中的表格；用<ol><li>表示答案；不需要给标签添加任何格式，不能使用其他标签。4、写成代码形式。");
+        });
+ 
+        function animateButtonClick(button) {
+            button.style.transform  = 'scale(0.95)';
+            button.style.boxShadow  = '0 1px 3px rgba(0, 0, 0, 0.2)';
+            button.style.opacity  = '0.9';
+ 
+            setTimeout(() => {
+                button.style.transform  = '';
+                button.style.boxShadow  = '';
+                button.style.opacity  = '';
+            }, 100);
+        }
+ 
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea'); 
+            textarea.value  = text;
+            textarea.style.position  = 'fixed';
+            textarea.style.opacity  = 0;
+            document.body.appendChild(textarea); 
+            textarea.select(); 
+ 
+            try {
+                const successful = document.execCommand('copy'); 
+                if (successful) {
+                    showCopyNotification('已复制到剪贴板');
+                } else {
+                    showCopyNotification('复制失败，请手动复制');
+                }
+            } catch (err) {
+                console.error(' 使用execCommand复制失败:', err);
+                if (navigator.clipboard)  {
+                    navigator.clipboard.writeText(text).then( 
+                        () => showCopyNotification('已复制到剪贴板'),
+                        () => showCopyNotification('复制失败，请手动复制')
+                    );
+                } else {
+                    showCopyNotification('浏览器不支持复制功能，请手动复制');
+                }
+            }
+ 
+            document.body.removeChild(textarea); 
+        }
+ 
+        function showCopyNotification(message) {
+            const existingNotification = document.querySelector('.copy-notification'); 
+            if (existingNotification) {
+                existingNotification.remove(); 
+            }
+ 
+            const notification = document.createElement('div'); 
+            notification.className  = 'copy-notification';
+            notification.textContent  = message;
+            document.body.appendChild(notification); 
+ 
+            setTimeout(() => {
+                notification.remove(); 
+            }, 2000);
+        }
+ 
+        // 搜索按钮点击事件
+        searchBtn.addEventListener('click',  function () {
+            fetchQuestions();
+        });
+ 
+        // 重置按钮点击事件
+        resetBtn.addEventListener('click',  function () {
+            difficultySelect.value  = '';
+            topicInput.value  = '';
+            fetchQuestions();
+        });
+ 
+        // 新增题目按钮点击事件 
+        addQuestionBtn.addEventListener('click',  function () {
+            addQuestionForm.style.display  = 'block';
+            questionsList.style.display  = 'none';
+        });
+ 
+        // 取消新增按钮点击事件
+        cancelAddBtn.addEventListener('click',  function () {
+            addQuestionForm.style.display  = 'none';
+            questionsList.style.display  = 'block';
+            resetAddForm();
+        });
+ 
+        // 提交新增题目按钮点击事件 
+        submitAddBtn.addEventListener('click',  async function () {
+            if (!validateAddForm()) {
+                return;
+            }
+ 
+            try {
+                const scrollPosition = window.scrollY; 
+                loadingElement.style.display  = 'block';
+                errorElement.style.display  = 'none';
+ 
+                const imageName = newQuestionImage.value.trim(); 
+                const fullImageUrl = imageName ? `image/${imageName}.jpg` : '';
+ 
+                const response = await fetch('api.php',  {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        action: 'add_question',
+                        difficulty: newDifficulty.value, 
+                        topic: newTopic.value, 
+                        question_text: newQuestionText.value, 
+                        question_image: fullImageUrl,
+                        answer_text: newAnswerText.value  
+                    })
+                });
+ 
+                if (!response.ok)  {
+                    throw new Error(`服务器返回错误: ${response.status}`); 
+                }
+ 
+                const data = await response.json(); 
+ 
+                if (!data.success)  {
+                    throw new Error(data.message  || "添加题目失败");
+                }
+ 
+                addQuestionForm.style.display  = 'none';
+                questionsList.style.display  = 'block';
+                resetAddForm();
+                await fetchQuestions(scrollPosition);
+ 
+            } catch (error) {
+                console.error(' 添加题目失败:', error);
+                errorElement.innerHTML  = `添加题目失败: ${error.message}`; 
+                errorElement.style.display  = 'block';
+            } finally {
+                loadingElement.style.display  = 'none';
+                if (scrollPosition !== null) {
+                    window.scrollTo(0,  scrollPosition);
+                }
+            }
+        });
+ 
+        function validateAddForm() {
+            if (!newDifficulty.value)  {
+                alert('请选择难度');
+                return false;
+            }
+            if (!newTopic.value.trim())  {
+                alert('请输入主题');
+                return false;
+            }
+            if (!newQuestionText.value.trim())  {
+                alert('请输入题目内容');
+                return false;
+            }
+            if (!newAnswerText.value.trim())  {
+                alert('请输入答案');
+                return false;
+            }
+            return true;
+        }
+ 
+        function resetAddForm() {
+            newDifficulty.value  = '';
+            newTopic.value  = '';
+            newQuestionText.value  = '';
+            newQuestionImage.value  = '';
+            newAnswerText.value  = '';
+        }
+ 
+        async function fetchQuestions(scrollPosition = null) {
+            const currentScroll = window.scrollY; 
+ 
+            loadingElement.style.display  = 'block';
+            errorElement.style.display  = 'none';
+            questionsList.innerHTML  = '加载中...';
+ 
+            try {
+                const difficulty = difficultySelect.value; 
+                const topic = topicInput.value.trim(); 
+ 
+                const params = new URLSearchParams();
+                params.append('action',  'get_questions');
+                if (difficulty) params.append('difficulty',  difficulty);
+                if (topic) params.append('topic',  topic);
+ 
+                const response = await fetch(`api.php?${params.toString()}`); 
+ 
+                if (!response.ok)  {
+                    throw new Error(`服务器返回错误: ${response.status}`); 
+                }
+ 
+                const data = await response.json(); 
+ 
+                if (!data.success)  {
+                    throw new Error(data.message  || "服务器处理请求失败");
+                }
+ 
+                if (data.data  && data.data.length  > 0) {
+                    const sortedData = data.data.sort((a,  b) => a.question_id  - b.question_id); 
+                    displayQuestions(sortedData);
+                } else {
+                    questionsList.innerHTML  = '<p>没有找到符合条件的题目</p>';
+                }
+ 
+            } catch (error) {
+                console.error(' 获取题目失败:', error);
+                errorElement.innerHTML  = `
+                    <p>加载题目失败，请联系管理员</p>
+                    <p><small>错误详情: ${error.message}</small></p> 
+                `;
+                errorElement.style.display  = 'block';
+                questionsList.innerHTML  = '<p>无法加载题目数据</p>';
+            } finally {
+                loadingElement.style.display  = 'none';
+                if (scrollPosition !== null) {
+                    window.scrollTo(0,  scrollPosition);
+                } else {
+                    window.scrollTo(0,  currentScroll);
+                }
+            }
+        }
+ 
+        async function deleteQuestion(questionId, questionCard) {
+            try {
+                const response = await fetch('api.php',  {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        action: 'delete_question',
+                        question_id: questionId 
+                    })
+                });
+    
+                if (!response.ok)  {
+                    throw new Error(`服务器返回错误: ${response.status}`); 
+                }
+    
+                const data = await response.json(); 
+    
+                if (!data.success)  {
+                    throw new Error(data.message  || "删除题目失败");
+                }
+    
+                // 从DOM中移除题目卡片 
+                questionCard.remove(); 
+                
+            } catch (error) {
+                console.error(' 删除题目失败:', error);
+                errorElement.innerHTML  = `删除题目失败: ${error.message}`; 
+                errorElement.style.display  = 'block';
+            }
+        }
+
+function displayQuestions(questions) {
+    questionsList.innerHTML  = '';
+ 
+    if (questions.length  === 0) {
+        questionsList.innerHTML  = '<p style="padding: 20px; text-align: center; color: #666;">没有找到符合条件的题目</p>';
+        return;
+    }
+ 
+    questions.forEach(question  => {
+        // 创建题目卡片容器 - 根据难度添加对应类名 
+        const questionCard = document.createElement('div'); 
+        questionCard.className  = `question-card difficulty-${question.difficulty_level}`; 
+        questionCard.dataset.questionId  = question.question_id; 
+ 
+        /* ================= 题目头部区域 ================= */
+        const questionHeader = document.createElement('div'); 
+        questionHeader.className  = 'question-header';
+ 
+        // ID显示 
+        const idSpan = document.createElement('span'); 
+        idSpan.className  = 'question-id';
+        idSpan.textContent  = `ID: ${question.question_id}`; 
+ 
+        // 主题显示 
+        const topicSpan = document.createElement('span'); 
+        topicSpan.className  = 'topic';
+        topicSpan.textContent  = question.topic  || '无主题';
+ 
+        // 删除按钮（新增）
+        const deleteBtn = document.createElement('button'); 
+        deleteBtn.className  = 'edit-btn delete-btn';
+        deleteBtn.textContent  = '删除';
+        deleteBtn.style.cssText  = 'margin-left: 10px; background-color: #dc3545;';
+        deleteBtn.addEventListener('click',  (e) => {
+            e.stopPropagation(); 
+            if (confirm(`确定要删除题目(ID: ${question.question_id}) 吗？此操作不可撤销！`)) {
+                deleteQuestion(question.question_id,  questionCard);
+            }
+        });
+ 
+        // 编辑按钮 
+        const editBtn = document.createElement('button'); 
+        editBtn.className  = 'edit-btn';
+        editBtn.textContent  = '编辑';
+        editBtn.addEventListener('click',  (e) => {
+            e.stopPropagation(); 
+            const scrollPosition = window.scrollY; 
+            enableEditMode(questionCard, question, scrollPosition);
+        });
+ 
+        // 组装头部区域 
+        questionHeader.appendChild(idSpan); 
+        questionHeader.appendChild(topicSpan); 
+        questionHeader.appendChild(deleteBtn);  // 新增的删除按钮 
+        questionHeader.appendChild(editBtn); 
+ 
+        /* ================= 题目内容区域 ================= */
+        const contentWrapper = document.createElement('div'); 
+        contentWrapper.className  = 'question-content-wrapper';
+ 
+        // 题目正文部分 
+        const questionText = document.createElement('div'); 
+        questionText.className  = 'question-text';
+        questionText.innerHTML  = question.question_text; 
+        questionText.dataset.original  = question.question_text; 
+ 
+        // 图片容器 
+        let imageContainer = null;
+        if (question.question_image)  {
+            imageContainer = document.createElement('div'); 
+            imageContainer.className  = 'question-image-container';
+ 
+            const img = document.createElement('img'); 
+            img.className  = 'question-image';
+            img.src  = question.question_image; 
+            img.alt  = '题目插图';
+            img.loading  = 'lazy';
+            img.style.cssText  = 'display: block; margin: 0 auto;';
+ 
+            imageContainer.appendChild(img); 
+        }
+ 
+        // 组装内容区域 
+        contentWrapper.appendChild(questionText); 
+        if (imageContainer) {
+            contentWrapper.appendChild(imageContainer); 
+        }
+ 
+        /* ================= 答案区域 ================= */
+        const answerContainer = document.createElement('div'); 
+        answerContainer.className  = 'answer-container';
+ 
+        const answerHeader = document.createElement('div'); 
+        answerHeader.className  = 'answer-header';
+ 
+        const answerTitle = document.createElement('h4'); 
+        answerTitle.textContent  = '🔍 答案';
+ 
+        const toggleBtn = document.createElement('button'); 
+        toggleBtn.className  = 'toggle-answer-btn';
+        toggleBtn.innerHTML  = '▼';
+        toggleBtn.title  = '点击展开/收起答案';
+ 
+        answerHeader.appendChild(answerTitle); 
+        answerHeader.appendChild(toggleBtn); 
+ 
+        const answerContent = document.createElement('div'); 
+        answerContent.className  = 'answer-content';
+        answerContent.innerHTML  = question.answer_text; 
+        answerContent.dataset.original  = question.answer_text; 
+ 
+        answerContainer.appendChild(answerHeader); 
+        answerContainer.appendChild(answerContent); 
+ 
+        // 点击切换答案显示/隐藏 
+        answerHeader.addEventListener('click',  function() {
+            answerContent.classList.toggle('show'); 
+            toggleBtn.innerHTML  = answerContent.classList.contains('show')  ? '▲' : '▼';
+        });
+ 
+        /* ================= 组装完整题目卡片 ================= */
+        questionCard.appendChild(questionHeader); 
+        questionCard.appendChild(contentWrapper); 
+        questionCard.appendChild(answerContainer); 
+ 
+        // 添加到题目列表 
+        questionsList.appendChild(questionCard); 
+    });
+}
+
+        function enableEditMode(questionCard, question, scrollPosition) {
+            questionCard.classList.add('edit-mode'); 
+ 
+            const originalValues = {
+                difficulty: question.difficulty_level, 
+                topic: question.topic, 
+                question_text: question.question_text, 
+                question_image: question.question_image, 
+                answer_text: question.answer_text  
+            };
+ 
+            const header = questionCard.querySelector('.question-header'); 
+            const topicSpan = questionCard.querySelector('.topic'); 
+            const questionText = questionCard.querySelector('div:nth-child(2)'); 
+            const answerContainer = questionCard.querySelector('.answer-container'); 
+            const answerContent = answerContainer.querySelector('.answer-content'); 
+ 
+            // 创建难度选择下拉框 
+            const difficultySelect = document.createElement('select'); 
+            difficultySelect.innerHTML  = `
+                <option value="easy" ${question.difficulty_level  === 'easy' ? 'selected' : ''}>简单</option>
+                <option value="medium" ${question.difficulty_level  === 'medium' ? 'selected' : ''}>中等</option>
+            `;
+            difficultySelect.style.cssText  = 'padding: 8px; border-radius: 4px; border: 1px solid #ddd;';
+            
+            // 难度改变时更新卡片样式 
+            difficultySelect.addEventListener('change',  function() {
+                questionCard.classList.remove('difficulty-easy',  'difficulty-medium');
+                questionCard.classList.add(`difficulty-${this.value}`); 
+            });
+ 
+            // 创建主题输入框
+            const topicInput = document.createElement('input'); 
+            topicInput.type  = 'text';
+            topicInput.value  = question.topic  || '';
+            topicInput.style.cssText  = 'padding: 8px; width: 200px; border-radius: 4px; border: 1px solid #ddd;';
+ 
+            // 创建可编辑的题目内容区域
+            const editableQuestion = document.createElement('div'); 
+            editableQuestion.className  = 'editable-content';
+            editableQuestion.contentEditable  = true;
+            editableQuestion.innerHTML  = question.question_text; 
+ 
+            // 创建题目内容工具栏
+            const questionToolbar = createToolbar(editableQuestion, 'question');
+ 
+            // 创建可编辑的答案内容区域
+            const editableAnswer = document.createElement('div'); 
+            editableAnswer.className  = 'answer-content editable-content';
+            editableAnswer.contentEditable  = true;
+            editableAnswer.innerHTML  = question.answer_text; 
+ 
+            // 创建答案内容工具栏
+            const answerToolbar = createToolbar(editableAnswer, 'answer');
+ 
+            // 替换原有元素为可编辑版本
+            topicSpan.replaceWith(topicInput); 
+ 
+            // 插入题目工具栏和可编辑区域 
+            questionText.parentNode.insertBefore(questionToolbar,  questionText);
+            questionText.replaceWith(editableQuestion); 
+ 
+            // 修改答案部分结构
+            const answerHeader = answerContainer.querySelector('.answer-header'); 
+            answerHeader.querySelector('h4').textContent  = '答案（编辑模式）';
+            const toggleBtn = answerHeader.querySelector('.toggle-answer-btn'); 
+            if (toggleBtn) toggleBtn.remove(); 
+ 
+            // 替换答案内容并插入工具栏
+            answerContent.replaceWith(editableAnswer); 
+            answerHeader.parentNode.insertBefore(answerToolbar,  answerHeader.nextSibling); 
+            editableAnswer.classList.add('show'); 
+ 
+            // 创建保存按钮
+            const saveBtn = document.createElement('button'); 
+            saveBtn.className  = 'edit-btn save-btn';
+            saveBtn.textContent  = '保存';
+            saveBtn.style.cssText  = 'margin-left: 10px; padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;';
+            saveBtn.addEventListener('click',  async () => {
+                const success = await saveChanges(questionCard, {
+                    difficulty: difficultySelect.value, 
+                    topic: topicInput.value, 
+                    question_text: editableQuestion.innerHTML, 
+                    answer_text: editableAnswer.innerHTML  
+                });
+                if (success) {
+                    questionCard.classList.remove('edit-mode'); 
+                    fetchQuestions().then(() => {
+                        window.scrollTo(0,  scrollPosition);
+                    });
+                }
+            });
+ 
+            // 创建取消按钮
+            const cancelBtn = document.createElement('button'); 
+            cancelBtn.className  = 'edit-btn cancel-btn';
+            cancelBtn.textContent  = '取消';
+            cancelBtn.style.cssText  = 'margin-left: 10px; padding: 8px 16px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;';
+            cancelBtn.addEventListener('click',  () => {
+                difficultySelect.value  = originalValues.difficulty; 
+                topicInput.value  = originalValues.topic; 
+                editableQuestion.innerHTML  = originalValues.question_text; 
+                editableAnswer.innerHTML  = originalValues.answer_text; 
+ 
+                questionCard.classList.remove('edit-mode'); 
+                fetchQuestions().then(() => {
+                    window.scrollTo(0,  scrollPosition);
+                });
+            });
+ 
+            // 移除原有的编辑按钮
+            const editBtn = questionCard.querySelector('.edit-btn'); 
+            if (editBtn) editBtn.remove(); 
+ 
+            // 添加操作按钮 
+            header.appendChild(saveBtn); 
+            header.appendChild(cancelBtn); 
+        }
+ 
+        function createToolbar(editableElement, type) {
+            const toolbar = document.createElement('div'); 
+            toolbar.className  = 'toolbar';
+ 
+            const toggleHtmlBtn = document.createElement('button'); 
+            toggleHtmlBtn.textContent  = '查看HTML';
+            toggleHtmlBtn.title  = '切换查看HTML源代码';
+ 
+            const handleFormatButtonClick = (tag) => {
+                const isHtmlMode = editableElement.getAttribute('data-html-mode')  === 'true';
+ 
+                if (isHtmlMode) {
+                    const textarea = editableElement.querySelector('textarea'); 
+                    const startPos = textarea.selectionStart; 
+                    const endPos = textarea.selectionEnd; 
+ 
+                    let insertContent = '';
+                    if (tag === 'table') {
+                        insertContent =
+                            '<table>\n' +
+                            '  <tr>\n' +
+                            '    <td>第1行第1列</td>\n' +
+                            '    <td>第1行第2列</td>\n' +
+                            '  </tr>\n' +
+                            '  <tr>\n' +
+                            '    <td>第2行第1列</td>\n' +
+                            '    <td>第2行第1列</td>\n' +
+                            '  </tr>\n' +
+                            '</table>';
+                    } else if (tag === 'ul') {
+                        insertContent = '<ul>\n  <li>列表项1</li>\n  <li>列表项2</li>\n</ul>';
+                    } else if (tag === 'br') {
+                        insertContent = '<br>';
+                    } else {
+                        const selectedText = textarea.value.substring(startPos,  endPos);
+                        insertContent = `<${tag}>${selectedText || ''}</${tag}>`;
+                    }
+ 
+                    const beforeText = textarea.value.substring(0,  startPos);
+                    const afterText = textarea.value.substring(endPos); 
+                    textarea.value  = beforeText + insertContent + afterText;
+ 
+                    setTimeout(() => {
+                        if (tag === 'table' || tag === 'ul') {
+                            const contentPos = beforeText.length  + insertContent.indexOf(' 内容');
+                            textarea.selectionStart  = contentPos;
+                            textarea.selectionEnd  = contentPos + 2;
+                        } else {
+                            const cursorPos = beforeText.length  + insertContent.length; 
+                            if (insertContent.endsWith(`</${tag}>`))  {
+                                textarea.selectionStart  = beforeText.length  + `<${tag}>`.length;
+                                textarea.selectionEnd  = textarea.selectionStart; 
+                            } else {
+                                textarea.selectionStart  = cursorPos;
+                                textarea.selectionEnd  = cursorPos;
+                            }
+                        }
+                        textarea.focus(); 
+                    }, 0);
+                } else {
+                    const selection = window.getSelection(); 
+                    if (!selection.rangeCount)  return;
+ 
+                    const range = selection.getRangeAt(0); 
+                    const selectedText = range.toString(); 
+ 
+                    let parent = range.commonAncestorContainer; 
+                    while (parent && parent !== editableElement) {
+                        if (parent.nodeName  === tag.toUpperCase())  {
+                            const textNode = document.createTextNode(parent.textContent); 
+                            parent.parentNode.replaceChild(textNode,  parent);
+                            return;
+                        }
+                        parent = parent.parentNode; 
+                    }
+ 
+                    let newContent = '';
+                    switch (tag) {
+                        case 'table':
+                            newContent = `<table><tr><td>内容</td><td>内容</td></tr><tr><td>内容</td><td>内容</td></tr></table>`;
+                            break;
+                        case 'ul':
+                            newContent = `<ul><li>列表项</li><li>列表项</li></ul>`;
+                            break;
+                        case 'br':
+                            newContent = `<br>`;
+                            break;
+                        default:
+                            newContent = `<${tag}>${selectedText}</${tag}>`;
+                    }
+ 
+                    if (selectedText) {
+                        range.deleteContents(); 
+                        range.insertNode(document.createRange().createContextualFragment(newContent)); 
+                    } else {
+                        range.insertNode(document.createRange().createContextualFragment(newContent)); 
+                    }
+ 
+                    editableElement.focus(); 
+                }
+            };
+ 
+            toggleHtmlBtn.addEventListener('click',  function () {
+                const isHtmlMode = editableElement.getAttribute('data-html-mode')  === 'true';
+ 
+                if (isHtmlMode) {
+                    const textarea = editableElement.querySelector('textarea'); 
+                    const htmlContent = textarea.value; 
+ 
+                    editableElement.innerHTML  = htmlContent;
+                    editableElement.contentEditable  = true;
+                    editableElement.removeAttribute('data-html-mode'); 
+                    toggleHtmlBtn.textContent  = '查看HTML';
+                } else {
+                    const htmlContent = editableElement.innerHTML; 
+                    editableElement.setAttribute('data-original-html',  htmlContent);
+ 
+                    const textarea = document.createElement('textarea'); 
+                    textarea.value  = htmlContent;
+                    textarea.style.width  = '100%';
+                    textarea.style.minHeight  = '150px';
+                    textarea.style.padding  = '10px';
+                    textarea.style.fontFamily  = 'monospace';
+                    textarea.style.whiteSpace  = 'pre';
+ 
+                    editableElement.innerHTML  = '';
+                    editableElement.appendChild(textarea); 
+                    editableElement.contentEditable  = false;
+                    editableElement.setAttribute('data-html-mode',  'true');
+                    toggleHtmlBtn.textContent  = '返回编辑';
+                }
+            });
+ 
+            toolbar.appendChild(toggleHtmlBtn); 
+ 
+            const addButton = (text, tag, icon = null) => {
+                const btn = document.createElement('button'); 
+                btn.title  = text;
+ 
+                if (icon) {
+                    btn.innerHTML  = icon;
+                } else {
+                    btn.textContent  = text;
+                }
+ 
+                btn.addEventListener('click',  (e) => {
+                    e.preventDefault(); 
+                    handleFormatButtonClick(tag);
+                });
+ 
+                toolbar.insertBefore(btn,  toggleHtmlBtn);
+                return btn;
+            };
+ 
+            addButton('B', 'b');
+            addButton('上标', 'sup');
+            addButton('下标', 'sub');
+            addButton('列表', 'ul');
+            addButton('表格', 'table');
+            addButton('换行', 'br', '↵');
+ 
+            const separator = document.createElement('div'); 
+            separator.className  = 'toolbar-separator';
+            toolbar.insertBefore(separator,  toggleHtmlBtn);
+ 
+            const tip = document.createElement('small'); 
+            tip.textContent  = '选中文字后点击按钮添加格式';
+            toolbar.insertBefore(tip,  toggleHtmlBtn);
+ 
+            return toolbar;
+        }
+ 
+        async function saveChanges(questionCard, updatedData) {
+            const questionId = questionCard.dataset.questionId; 
+ 
+            try {
+                loadingElement.style.display  = 'block';
+                errorElement.style.display  = 'none';
+ 
+                const response = await fetch('api.php',  {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        action: 'update_question',
+                        question_id: questionId,
+                        difficulty: updatedData.difficulty, 
+                        topic: updatedData.topic, 
+                        question_text: updatedData.question_text, 
+                        answer_text: updatedData.answer_text 
+                    })
+                });
+ 
+                if (!response.ok)  {
+                    throw new Error(`服务器返回错误: ${response.status}`); 
+                }
+ 
+                const data = await response.json(); 
+ 
+                if (!data.success)  {
+                    throw new Error(data.message  || "更新题目失败");
+                }
+ 
+                return true;
+ 
+            } catch (error) {
+                console.error(' 更新题目失败:', error);
+                errorElement.innerHTML  = `更新题目失败: ${error.message}`; 
+                errorElement.style.display  = 'block';
+                return false;
+            } finally {
+                loadingElement.style.display  = 'none';
+            }
+        }
+    });
+</script>
+
+</body>
+
+</html>
