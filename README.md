@@ -46,8 +46,6 @@
 ## 📂 项目结构
 
 ```
-千人千卷.zip/
-│
 ├── question/ # 出题系统 (PHP)
 │ ├── index.php
 │ ├── api.php
@@ -66,6 +64,12 @@
 │ └── printAnswer.py
 │
 ├── teaching_assistant.sql/ # 数据库信息
+│
+├── 界面截图及poc报告
+│ ├── correcting界面.png
+│ ├── question界面.png
+│ ├── text peaper界面.png
+│ └── report.pdf
 │
 └── README.md
 ```
