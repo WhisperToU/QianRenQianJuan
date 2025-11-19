@@ -4,7 +4,7 @@
       v-for="action in actions"
       :key="action.label"
       type="button"
-      @click="$emit('select', action.prompt)"
+      @click="$emit('select', action)"
     >
       {{ action.label }}
     </button>
