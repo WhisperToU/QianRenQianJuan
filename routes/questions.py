@@ -118,3 +118,29 @@ def list_topics():
     cursor.close()
     conn.close()
     return jsonify([r["topic"] for r in rows if r["topic"]])
+
+@questions_bp.route("/count", methods=["GET"])
+def count_questions():
+    topic = request.args.get("topic")
+    difficulty = request.args.get("difficulty_level")
+    if not topic or not difficulty:
+        return jsonify({"error": "缺少 topic 或 difficulty_level 参数"}), 400
+
+    conn = cursor = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) AS total FROM questions WHERE topic=%s AND difficulty_level=%s",
+            (topic, difficulty)
+        )
+        row = cursor.fetchone()
+        total = row[0] if row else 0
+        return jsonify({"count": total})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
