@@ -1,40 +1,99 @@
-﻿<template>
+<template>
   <section class="question-grid">
-    <article v-for="item in entries" :key="item.id" class="question-card">
+    <article
+      v-for="card in cards"
+      :key="card.id"
+      :class="['question-card', { saved: card.saved }]"
+    >
       <header class="card-head">
         <div>
-          <p class="tile-id">Q{{ String(item.id).padStart(3, '0') }}</p>
-          <h4>{{ item.title }}</h4>
+          <h4 v-if="!card.editing">{{ card.title }}</h4>
+          <input
+            v-else
+            v-model="card.title"
+            class="title-input"
+            type="text"
+            placeholder="请输入题目名称"
+          />
         </div>
-        <span class="status-chip">{{ item.status || '草稿' }}</span>
+        <span v-if="card.saved" class="badge">已入库</span>
       </header>
 
-      <div class="meta-row">
-        <span class="topic-chip">{{ item.topic }}</span>
-        <span class="difficulty-chip" :data-level="item.difficulty">
-          难度 · {{ difficultyLabel[item.difficulty] || item.difficulty }}
-        </span>
+      <div class="meta-grid">
+        <div class="field">
+          <input
+            v-if="card.editing"
+            v-model="card.topic"
+            type="text"
+            placeholder="例：函数与图像"
+          />
+          <span v-else class="topic-pill">
+            {{ card.topic || '未命名专题' }}
+          </span>
+        </div>
+        <div class="field">
+          <select v-if="card.editing" v-model="card.difficulty">
+            <option
+              v-for="option in difficultyOptions"
+              :key="option"
+              :value="option"
+            >
+              {{ difficultyLabel[option] }}
+            </option>
+          </select>
+          <span
+            v-else
+            class="difficulty-pill"
+            :data-level="card.difficulty"
+          >
+            {{ difficultyLabel[card.difficulty] || card.difficulty }}
+          </span>
+        </div>
       </div>
 
-      <div class="text-stack">
-        <label>
-          <span>题干</span>
-          <p>{{ item.question }}</p>
-        </label>
-        <label>
-          <span>答案/解析</span>
-          <p>{{ item.answer }}</p>
-        </label>
+      <div class="qa-grid">
+        <div class="qa-block">
+          <p class="qa-label">题干</p>
+          <textarea
+            v-if="card.editing"
+            v-model="card.question"
+            class="qa-input"
+            rows="4"
+          ></textarea>
+          <p v-else class="qa-text">{{ card.question }}</p>
+        </div>
+        <div class="qa-block">
+          <p class="qa-label">答/解析</p>
+          <textarea
+            v-if="card.editing"
+            v-model="card.answer"
+            class="qa-input"
+            rows="4"
+          ></textarea>
+          <p v-else class="qa-text">{{ card.answer }}</p>
+        </div>
       </div>
 
-      <footer class="card-foot">
-        <small>题型：{{ item.type || '主观题' }} · 预计用时 {{ item.duration || '5' }} 分钟</small>
-      </footer>
+      <div class="card-actions">
+        <button type="button" class="ghost-btn" @click="toggleEdit(card)">
+          {{ card.editing ? '取消编辑' : '编辑' }}
+        </button>
+        <button
+          type="button"
+          class="primary-btn"
+          :disabled="!card.editing"
+          @click="saveCard(card)"
+        >
+          保存
+        </button>
+      </div>
     </article>
   </section>
 </template>
 
 <script setup>
+import { ref, watch } from 'vue';
+
 const props = defineProps({
   payload: {
     type: Object,
@@ -42,32 +101,85 @@ const props = defineProps({
   }
 });
 
-const entries = props.payload.questions || [];
+const emit = defineEmits(['save']);
 
 const difficultyLabel = {
-  easy: '基础',
-  medium: '进阶',
-  hard: '挑战'
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'difficult'
 };
+
+const difficultyOptions = Object.keys(difficultyLabel);
+
+const cards = ref(createCards(props.payload.questions));
+
+watch(
+  () => props.payload.questions,
+  (next) => {
+    cards.value = createCards(next);
+  },
+  { deep: true }
+);
+
+function createCards(list = []) {
+  return (list || []).map((item, idx) => ({
+    id: item.id ?? idx + 1,
+    title: item.title ?? `题目 ${idx + 1}`,
+    topic: item.topic ?? '',
+    difficulty: item.difficulty ?? 'medium',
+    question: item.question ?? '',
+    answer: item.answer ?? '',
+    type: item.type,
+    duration: item.duration,
+    editing: false,
+    saved: false
+  }));
+}
+
+function toggleEdit(card) {
+  card.editing = !card.editing;
+}
+
+function saveCard(card) {
+  const payload = {
+    id: card.id,
+    title: card.title,
+    topic: card.topic,
+    difficulty: card.difficulty,
+    question: card.question,
+    answer: card.answer
+  };
+  emit('save', payload);
+  card.saved = true;
+  card.editing = false;
+  console.info('保存题目到数据库（mock）', payload);
+}
 </script>
 
 <style scoped>
 .question-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
   width: 100%;
 }
 
 .question-card {
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  border-radius: 18px;
-  padding: 16px;
-  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 16px;
+  padding: 16px 14px 14px;
+  background: rgba(8, 12, 20, 0.95);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  gap: 10px;
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.45);
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.question-card.saved {
+  border-color: rgba(71, 85, 105, 0.35);
+  background: rgba(6, 9, 15, 0.92);
+  color: rgba(148, 163, 184, 0.65);
 }
 
 .card-head {
@@ -76,93 +188,205 @@ const difficultyLabel = {
   gap: 10px;
 }
 
-.tile-id {
-  margin: 0;
-  font-size: 12px;
-  color: #94a3b8;
-}
-
 .card-head h4 {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 16px;
-  color: #0f172a;
+  color: #f8fafc;
 }
 
-.status-chip {
+.title-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #f8fafc;
+}
+
+.badge {
   font-size: 12px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: rgba(100, 116, 139, 0.18);
+  color: rgba(226, 232, 240, 0.85);
 }
 
-.meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
   font-size: 13px;
 }
 
-.topic-chip {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #e0f2fe;
-  color: #0369a1;
-}
-
-.difficulty-chip {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.difficulty-chip[data-level='easy'] {
-  background: #ecfccb;
-  color: #3f6212;
-}
-
-.difficulty-chip[data-level='medium'] {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.difficulty-chip[data-level='hard'] {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.text-stack {
+.field {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
 }
 
-.text-stack label {
+.field input,
+.field select {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.8);
+  color: #f8fafc;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.field select {
+  text-transform: capitalize;
+}
+
+.topic-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.2);
+  color: #7dd3fc;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.question-card.saved .topic-pill {
+  background: rgba(51, 65, 85, 0.45);
+  color: rgba(226, 232, 240, 0.85);
+  font-weight: 500;
+}
+
+.difficulty-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(51, 65, 85, 0.7);
+  color: #e2e8f0;
+}
+
+.difficulty-pill[data-level='easy'] {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+}
+
+.difficulty-pill[data-level='medium'] {
+  background: rgba(249, 115, 22, 0.18);
+  color: #fb923c;
+}
+
+.difficulty-pill[data-level='hard'] {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+}
+
+.question-card.saved .difficulty-pill {
+  background: rgba(51, 65, 85, 0.6);
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.qa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.qa-block {
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(2, 6, 23, 0.65);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 13px;
-  color: #475569;
+  min-height: 96px;
 }
 
-.text-stack p {
+.qa-label {
   margin: 0;
-  background: #f8fafc;
-  border-radius: 12px;
-  padding: 10px 12px;
-  min-height: 80px;
-  color: #0f172a;
-  line-height: 1.5;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.qa-text {
+  margin: 0;
+  color: #f1f5f9;
+  line-height: 1.45;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.card-foot {
-  margin-top: auto;
-  color: #94a3b8;
-  font-size: 12px;
+.qa-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.card-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.ghost-btn,
+.primary-btn {
+  border-radius: 12px;
+  border: 1px solid transparent;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.ghost-btn {
+  background: transparent;
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #e2e8f0;
+}
+
+.primary-btn {
+  border: none;
+  background: linear-gradient(135deg, #22d3ee, #a855f7);
+  color: #0f172a;
+}
+
+.primary-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ghost-btn:hover,
+.primary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.question-card.saved {
+  background: rgba(7, 9, 14, 0.92);
+  color: rgba(148, 163, 184, 0.6);
+}
+
+.question-card.saved :is(.badge, .topic-pill, .difficulty-pill, .qa-label, .ghost-btn, .primary-btn, h4) {
+  color: inherit;
+  border-color: rgba(71, 85, 105, 0.3);
+  background: rgba(34, 40, 54, 0.35);
+}
+
+.question-card.saved .ghost-btn,
+.question-card.saved .primary-btn {
+  opacity: 0.6;
+}
+
+.question-card.saved .qa-text {
+  color: rgba(226, 232, 240, 0.78);
+  font-weight: 600;
 }
 </style>

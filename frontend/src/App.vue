@@ -31,14 +31,26 @@
         </div>
       </div>
       <div class="sidebar-bottom">
-        <button type="button" class="user-card">
-          <div class="avatar">访</div>
+        <button type="button" class="user-card" :aria-label="sidebarProfile.name">
+          <div
+            class="avatar"
+            :class="{ 'avatar-image': !!sidebarProfile.avatarUrl, 'avatar-guest': !sidebarProfile.avatarUrl }"
+          >
+            <img
+              v-if="sidebarProfile.avatarUrl"
+              :src="sidebarProfile.avatarUrl"
+              :alt="sidebarProfile.name"
+            />
+            <span v-else>{{ sidebarProfile.avatarFallback || '访' }}</span>
+          </div>
           <div>
-            <strong>访客用户</strong>
-            <small>未登录</small>
+            <strong>{{ sidebarProfile.name }}</strong>
+            <small>{{ sidebarProfile.status }}</small>
           </div>
         </button>
-        <button type="button" class="login-btn">登录账号</button>
+        <button type="button" class="login-btn">
+          {{ isAuthenticated ? '账号设置' : '登录账号' }}
+        </button>
       </div>
     </aside>
     <div v-else class="sidebar-rail">
@@ -57,6 +69,24 @@
         @click="startNewConversation"
       >
         +
+      </button>
+      <button
+        type="button"
+        class="rail-avatar"
+        :title="sidebarProfile.name"
+        :aria-label="isAuthenticated ? `${sidebarProfile.name}的头像` : '访客头像'"
+      >
+        <div
+          class="avatar"
+          :class="{ 'avatar-image': !!sidebarProfile.avatarUrl, 'avatar-guest': !sidebarProfile.avatarUrl }"
+        >
+          <img
+            v-if="sidebarProfile.avatarUrl"
+            :src="sidebarProfile.avatarUrl"
+            :alt="sidebarProfile.name"
+          />
+          <span v-else>{{ sidebarProfile.avatarFallback || '访' }}</span>
+        </div>
       </button>
     </div>
 
@@ -88,7 +118,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import QuickActions from './components/QuickActions.vue';
 import MessageList from './components/MessageList.vue';
 import {
@@ -101,6 +131,30 @@ import {
 
 const conversationCache = new Map();
 
+const guestProfile = {
+  name: '体验访客',
+  status: '未登录',
+  avatarFallback: '访',
+  avatarUrl: ''
+};
+
+const currentUser = ref(null);
+const sidebarProfile = computed(() => {
+  if (!currentUser.value) {
+    return { ...guestProfile };
+  }
+  const name = currentUser.value.name ?? '已登录用户';
+  return {
+    name,
+    status: currentUser.value.status ?? '已登录',
+    avatarFallback:
+      currentUser.value.avatarFallback ??
+      (name.trim() ? name.trim().slice(-1) : '用'),
+    avatarUrl: currentUser.value.avatarUrl ?? ''
+  };
+});
+const isAuthenticated = computed(() => Boolean(currentUser.value));
+
 const conversations = ref([
   { id: 1, title: '深度教学助手', updated: '刚刚' },
   { id: 2, title: '题库概览演示', updated: '今天' },
@@ -110,13 +164,16 @@ const conversations = ref([
 const selectedConversation = ref(conversations.value[0]?.id ?? null);
 const messages = ref([]);
 const input = ref('');
-const sidebarCollapsed = ref(false);
+const sidebarCollapsed = ref(true);
 const quickActions = [
   { label: '出题示例', prompt: '请出 5 道函数题', type: 'questions' },
   { label: '题库概览', prompt: '展示题库结构概览', type: 'overview' },
   { label: '班级/学生管理', prompt: '列出班级和学生情况', type: 'classes' },
   { label: '分配题目', prompt: '给三班学生布置作业', type: 'assign' }
 ];
+
+const DEFAULT_QUESTION_COUNT = 4;
+const MAX_QUESTION_COUNT = 20;
 
 let messageId = 0;
 
@@ -196,9 +253,10 @@ function respond(prompt, intent) {
   const normalized = prompt.toLowerCase();
 
   if (intent === 'questions' || prompt.includes('出题') || prompt.includes('题目')) {
-    pushMessage('assistant', '根据你的指令生成了题目草稿：', {
+    const questionCount = resolveQuestionCount(prompt);
+    pushMessage('assistant', `根据你的指令生成了${questionCount}道题目草稿：`, {
       type: 'questions',
-      questions: generateMockQuestions()
+      questions: generateMockQuestions(questionCount)
     });
     touchConversation();
     return;
@@ -208,16 +266,6 @@ function respond(prompt, intent) {
     pushMessage('assistant', '当前题库统计如下：', {
       type: 'overview',
       overview: mockOverview
-    });
-    touchConversation();
-    return;
-  }
-
-  if (intent === 'classes' || prompt.includes('班级') || prompt.includes('学生')) {
-    pushMessage('assistant', '班级与学生情况如下：', {
-      type: 'classes',
-      classes: mockClasses,
-      students: mockStudents
     });
     touchConversation();
     return;
@@ -239,6 +287,16 @@ function respond(prompt, intent) {
     return;
   }
 
+  if (intent === 'classes' || prompt.includes('班级') || prompt.includes('学生')) {
+    pushMessage('assistant', '班级与学生情况如下：', {
+      type: 'classes',
+      classes: mockClasses,
+      students: mockStudents
+    });
+    touchConversation();
+    return;
+  }
+
   pushMessage('assistant', '我可以帮你出题、查看题库结构、管理班级学生或分配题目。');
   touchConversation();
 }
@@ -246,6 +304,60 @@ function respond(prompt, intent) {
 function touchConversation(label = '刚刚') {
   const convo = conversations.value.find((c) => c.id === selectedConversation.value);
   if (convo) convo.updated = label;
+}
+
+function resolveQuestionCount(promptText) {
+  if (!promptText) return DEFAULT_QUESTION_COUNT;
+  const digitMatch = promptText.match(/(\d+)\s*(?:道|个)?\s*(?:题|题目|题目集|问题)/i);
+  if (digitMatch) {
+    return clampQuestionCount(parseInt(digitMatch[1], 10));
+  }
+  const chineseMatch = promptText.match(/([零一二两三四五六七八九十]+)\s*(?:道|个)?\s*(?:题|题目|问题)/);
+  if (chineseMatch) {
+    const parsed = chineseNumeralToNumber(chineseMatch[1]);
+    if (!Number.isNaN(parsed)) {
+      return clampQuestionCount(parsed);
+    }
+  }
+  return DEFAULT_QUESTION_COUNT;
+}
+
+function clampQuestionCount(value) {
+  if (!Number.isFinite(value)) return DEFAULT_QUESTION_COUNT;
+  return Math.max(1, Math.min(MAX_QUESTION_COUNT, Math.round(value)));
+}
+
+function chineseNumeralToNumber(content) {
+  if (!content) return NaN;
+  const map = {
+    零: 0,
+    一: 1,
+    二: 2,
+    两: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9
+  };
+  let total = 0;
+  let current = 0;
+  for (const char of content) {
+    if (char === '十') {
+      current = current === 0 ? 1 : current;
+      total += current * 10;
+      current = 0;
+      continue;
+    }
+    const digit = map[char];
+    if (digit === undefined) {
+      return NaN;
+    }
+    current = digit;
+  }
+  return total + current;
 }
 </script>
 
@@ -353,6 +465,22 @@ function touchConversation(label = '刚刚') {
   border-style: dashed;
 }
 
+.rail-avatar {
+  margin-top: auto;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.rail-avatar .avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.7);
+}
+
 .conversation-label {
   font-size: 12px;
   letter-spacing: 0.08em;
@@ -419,6 +547,27 @@ function touchConversation(label = '刚刚') {
   align-items: center;
   justify-content: center;
   font-weight: 600;
+  color: #0f172a;
+}
+
+.avatar span {
+  font-size: 14px;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.avatar.avatar-image {
+  padding: 0;
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.avatar.avatar-guest {
+  color: #e2e8f0;
 }
 
 .login-btn {
@@ -543,9 +692,13 @@ function touchConversation(label = '刚刚') {
 }
 
 .chat-window :deep(.message.assistant .bubble) {
-  background: #444654;
-  border-color: rgba(168, 85, 247, 0.25);
+  background: transparent;
+  border-color: transparent;
   color: #f3f4f6;
+  box-shadow: none;
+  max-width: 100%;
+  width: 100%;
+  padding: 0;
 }
 
 .chat-window :deep(.message.user .bubble) {

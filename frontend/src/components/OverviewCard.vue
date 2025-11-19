@@ -1,11 +1,7 @@
 <template>
   <section class="overview-card">
     <header class="overview-head">
-      <div>
-        <p class="eyebrow">数据快照 · mock</p>
-        <h3>题库结构概览</h3>
-      </div>
-      <span class="badge">teaching_assistant</span>
+      <h3>题库结构概览</h3>
     </header>
 
     <div class="kpi-grid">
@@ -23,22 +19,6 @@
         <p class="kpi-label">涉及数据表</p>
         <p class="kpi-value">{{ payload.overview.tables.length }}</p>
         <small>questions / classes / …</small>
-      </div>
-    </div>
-
-    <div class="tables-block" v-if="payload.overview.tables?.length">
-      <div class="block-head">
-        <h4>关联数据表</h4>
-        <small>{{ payload.overview.tables.length }} 张</small>
-      </div>
-      <div class="table-pills">
-        <span
-          v-for="table in payload.overview.tables"
-          :key="table"
-          class="pill"
-        >
-          {{ table }}
-        </span>
       </div>
     </div>
 
@@ -101,10 +81,12 @@ function difficultyEntries(difficulties) {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 20px;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  background: #fff;
+  padding: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 26px;
+  background: radial-gradient(circle at 15% 20%, rgba(236, 72, 153, 0.12), transparent 60%),
+    rgba(15, 23, 42, 0.92);
+  color: #f1f5f9;
 }
 
 .overview-head {
@@ -114,23 +96,15 @@ function difficultyEntries(difficulties) {
   gap: 12px;
 }
 
-.eyebrow {
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  color: #94a3b8;
-  text-transform: uppercase;
-}
-
 .overview-head h3 {
   margin: 6px 0 0;
 }
 
 .badge {
   font-size: 12px;
-  background: #e0f2fe;
-  color: #0369a1;
-  padding: 4px 10px;
+  background: rgba(14, 165, 233, 0.2);
+  color: #7dd3fc;
+  padding: 4px 12px;
   border-radius: 999px;
 }
 
@@ -141,54 +115,24 @@ function difficultyEntries(difficulties) {
 }
 
 .kpi {
-  border: 1px solid #e0e7ff;
-  border-radius: 16px;
-  padding: 14px;
-  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .kpi-label {
   margin: 0;
   font-size: 13px;
-  color: #64748b;
+  color: rgba(226, 232, 240, 0.72);
 }
 
 .kpi-value {
   margin: 8px 0 4px;
   font-size: 28px;
   font-weight: 600;
-  color: #0f172a;
-}
-
-.tables-block {
-  border: 1px dashed #cbd5f5;
-  border-radius: 18px;
-  padding: 16px;
-}
-
-.block-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.block-head h4 {
-  margin: 0;
-}
-
-.table-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.pill {
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-size: 13px;
+  color: #f8fafc;
 }
 
 .topics-grid {
@@ -198,10 +142,10 @@ function difficultyEntries(difficulties) {
 }
 
 .topic-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  padding: 16px;
-  background: #fdfdfd;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 20px;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.85);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -222,7 +166,7 @@ function difficultyEntries(difficulties) {
 
 .topic-count {
   font-size: 14px;
-  color: #2563eb;
+  color: #93c5fd;
   font-weight: 600;
 }
 
@@ -233,25 +177,25 @@ function difficultyEntries(difficulties) {
 }
 
 .difficulty-card {
-  border-radius: 14px;
-  padding: 10px;
-  background: #f1f5f9;
-  color: #1f2937;
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(30, 41, 59, 0.8);
+  color: #e2e8f0;
 }
 
 .difficulty-card[data-level='easy'] {
-  background: #ecfccb;
-  color: #3f6212;
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
 }
 
 .difficulty-card[data-level='medium'] {
-  background: #fef3c7;
-  color: #92400e;
+  background: rgba(249, 115, 22, 0.2);
+  color: #fbbf24;
 }
 
 .difficulty-card[data-level='hard'] {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: rgba(248, 113, 113, 0.2);
+  color: #fca5a5;
 }
 
 .difficulty-title {

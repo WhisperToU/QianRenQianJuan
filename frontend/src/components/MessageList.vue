@@ -1,5 +1,5 @@
 <template>
-  <div class="messages">
+  <div class="messages" ref="messageContainer">
     <div
       v-for="message in messages"
       :key="message.id"
@@ -18,17 +18,20 @@
 </template>
 
 <script setup>
+import { nextTick, ref, watch } from 'vue';
 import QuestionCards from './QuestionCards.vue';
 import OverviewCard from './OverviewCard.vue';
 import ClassCard from './ClassCard.vue';
 import AssignCard from './AssignCard.vue';
 
-defineProps({
+const props = defineProps({
   messages: {
     type: Array,
     required: true
   }
 });
+
+const messageContainer = ref(null);
 
 const componentMap = {
   questions: QuestionCards,
@@ -36,4 +39,17 @@ const componentMap = {
   classes: ClassCard,
   assign: AssignCard
 };
+
+watch(
+  () => props.messages.length,
+  () => {
+    nextTick(() => {
+      if (!messageContainer.value) return;
+      messageContainer.value.scrollTo({
+        top: messageContainer.value.scrollHeight,
+        behavior: 'smooth'
+      });
+    });
+  }
+);
 </script>
