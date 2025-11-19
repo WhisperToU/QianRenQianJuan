@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="assign-card">
     <section class="section-card class-section bare">
       <ClassCard
@@ -8,81 +8,84 @@
         v-model="selectedStudents"
       />
     </section>
-    <p v-if="dataError" class="error-text status-line">{{ dataError }}</p>
-    <p v-else-if="classLoading" class="loading-text status-line">正在同步班级数据...</p>
-    <p v-else-if="studentLoading" class="loading-text status-line">正在同步学生数据...</p>
-    <p v-else-if="topicLoading" class="loading-text status-line">正在加载专题...</p>
 
-        <section class="section-card topic-panel">
+    <section class="section-card topic-panel">
       <div class="section-head compact">
         <span v-if="selectedStudents.length" class="counter">
-          已选{{ selectedStudents.length }} 人
+          宸查€?{{ selectedStudents.length }} 浜?
         </span>
+        <span class="question-count">棰樺簱鍖归厤锛歿{ questionCount }} 閬?/span>
       </div>
+
       <div class="topic-grid">
-        <div
-          v-for="slot in assignmentSlots"
-          :key="slot.id"
-          class="assignment-slot"
-        >
-          <label class="field">
-            <span>专题</span>
-            <select v-model="slot.topic">
-              <option v-for="topic in topics" :key="topic" :value="topic">
-                {{ topic }}
-              </option>
-              <option v-if="!topics.length" disabled>暂无专题</option>
-            </select>
-          </label>
-          <div class="field">
-            <span>难度</span>
-            <div class="difficulty-tabs">
+        <div class="topic-status">
+          <p v-if="topicLoading" class="helper-text">Syncing topics...</p>
+          <p v-else-if="topicError" class="error-text">{{ topicError }}</p>
+        </div>
+        <div class="assignment-grid">
+          <article
+            v-for="(row, rowIndex) in assignmentRows"
+            :key="row.id"
+            class="assignment-card"
+          >
+            <div class="assignment-card__header">
+              <span class="assignment-card__index">涓撻 {{ rowIndex + 1 }}</span>
               <button
-                v-for="option in difficultyOptions"
-                :key="option.value"
+                v-if="assignmentRows.length > 1"
                 type="button"
-                :class="['difficulty-btn', { active: slot.difficulty === option.value }]"
-                @click="slot.difficulty = option.value"
+                class="icon-btn remove-row-btn"
+                @click="removeAssignmentRow(row.id)"
               >
-                {{ option.label }}
+                鍒犻櫎
               </button>
             </div>
-          </div>
-          <label class="field">
-            <span>数量</span>
-            <input
-              type="number"
-              min="1"
-              v-model.number="slot.quantity"
-              class="count-input"
-            />
-          </label>
+            <div class="assignment-card__body">
+              <label class="field assignment-label">
+                <span>涓撻</span>
+                <select :value="row.topic" @change="handleTopicChange(row, $event.target.value)">
+                  <option v-for="topic in topics" :key="topic" :value="topic">
+                    {{ topic }}
+                  </option>
+                  <option v-if="!topics.length" disabled>鏆傛棤涓撻</option>
+                </select>
+              </label>
+              <div class="field difficulty-field">
+                <span>闅惧害</span>
+                <div class="difficulty-tabs">
+                  <button
+                    v-for="option in difficultyOptions"
+                    :key="option.value"
+                    type="button"
+                    :class="['difficulty-btn', { active: row.difficulty === option.value }]"
+                    @click="handleDifficultyChange(row, option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+              <p class="assignment-card__meta">
+                <span v-if="row.countLoading">Querying database...</span>
+                <span v-else-if="row.countError" class="error-text">{{ row.countError }}</span>
+                <span v-else>题库数量：{{ row.availableCount ?? 'N/A' }}</span>
+              </p>
+            </div>
+          </article>
           <button
-            v-if="assignmentSlots.length > 1"
             type="button"
-            class="ghost-btn remove-slot"
-            @click="removeSlot(slot.id)"
+            class="secondary-btn add-row-btn add-row-card"
+            :disabled="roundCompleted"
+            @click="addAssignmentRow"
           >
-            删除
+            + 娣诲姞棰樼洰
           </button>
-          <p class="slot-count" v-if="slot.loading">匹配查询中…</p>
-          <p class="slot-count error-text" v-else-if="slot.error">{{ slot.error }}</p>
-          <p class="slot-count" v-else>匹配：{{ slot.count }} 道</p>
         </div>
-        <button
-          type="button"
-          class="primary-btn add-slot-btn"
-          @click="addSlot"
-        >
-          + 添加专题
-        </button>
       </div>
     </section>
 
     <section class="panel payload-panel">
       <div class="panel-head">
         <div>
-          <p class="panel-kicker">请求体</p>
+          <p class="panel-kicker">璇锋眰浣?/p>
         </div>
         <button
           type="button"
@@ -90,28 +93,31 @@
           :disabled="!canAssign || isSubmitting || roundCompleted"
           @click="handleAssign"
         >
-          {{ isSubmitting ? '提交中...' : '提交' }}
+          {{ isSubmitting ? '鎻愪氦涓?..' : '鎻愪氦' }}
         </button>
       </div>
       <pre class="payload-json">{{ requestPreview }}</pre>
       <p v-if="errorText" class="error-text">{{ errorText }}</p>
-      <p v-else-if="roundCompleted" class="round-info">本轮所有学生均已分配完成。</p>
+      <p v-else-if="roundCompleted" class="round-info">鏈疆鎵€鏈夊鐢熷潎宸插垎閰嶅畬鎴愩€?/p>
       <p v-else-if="submissionMessage" class="success-text">{{ submissionMessage }}</p>
     </section>
 
     <section v-if="assignmentResult" class="panel result-panel">
       <div class="panel-head">
         <div>
-          <p class="panel-kicker">分配结果</p>
+          <p class="panel-kicker">Mock Response</p>
           <h4>assigned</h4>
         </div>
         <span class="timestamp">{{ assignmentResult.timestamp }}</span>
       </div>
       <ul class="result-list">
-        <li v-for="row in assignmentResult.entries" :key="row.student_id">
+        <li
+          v-for="row in assignmentResult.entries"
+          :key="`${row.student_id}-${row.question_id}`"
+        >
           <span class="student">{{ row.student_name }}</span>
-          <span class="question">题号 #{{ row.question_id }}</span>
-          <span class="position">位置 {{ row.position }}</span>
+          <span class="question">棰樺彿 #{{ row.question_id }}</span>
+          <span class="position">浣嶇疆 {{ row.position }}</span>
         </li>
       </ul>
       <pre class="payload-json">{{ assignmentResult.json }}</pre>
@@ -120,7 +126,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import ClassCard from './ClassCard.vue';
 
 const props = defineProps({
@@ -132,26 +138,13 @@ const props = defineProps({
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
-const backendClasses = ref([]);
-const backendStudents = ref({});
-const backendTopics = ref([]);
-const classLoading = ref(false);
-const studentLoading = ref(false);
+const classes = computed(() => props.payload?.classes ?? []);
+const studentsMap = computed(() => props.payload?.students ?? {});
+const topics = ref(props.payload?.topics ?? []);
 const topicLoading = ref(false);
-const dataError = ref('');
-
-const classes = computed(() =>
-  backendClasses.value.length ? backendClasses.value : props.payload?.classes ?? []
-);
-const studentsMap = computed(() =>
-  Object.keys(backendStudents.value).length ? backendStudents.value : props.payload?.students ?? {}
-);
-const topics = computed(() =>
-  backendTopics.value.length ? backendTopics.value : props.payload?.topics ?? []
-);
+const topicError = ref('');
 
 const availableStudents = ref(cloneStudents(studentsMap.value));
-const selectedClass = ref(null);
 
 const classCardPayload = computed(() => ({
   classes: classes.value,
@@ -159,32 +152,43 @@ const classCardPayload = computed(() => ({
 }));
 
 const selectedStudents = ref([]);
-const assignmentSlots = ref([
-  {
-    id: Date.now(),
-    topic: '',
-    difficulty: 'medium',
-    quantity: 1,
-    count: 0,
-    loading: false,
-    error: ''
-  }
-]);
+let assignmentRowId = 0;
+const createAssignmentRow = (topic = topics.value[0] ?? '', difficulty = 'medium') => ({
+  id: ++assignmentRowId,
+  topic,
+  difficulty,
+  availableCount: null,
+  countKey: '',
+  countLoading: false,
+  countError: ''
+});
+const assignmentRows = ref([createAssignmentRow()]);
 const assignmentResult = ref(null);
 const errorText = ref('');
 const submissionMessage = ref('');
 const isSubmitting = ref(false);
 
 const difficultyOptions = [
-  { value: 'easy', label: 'easy' },
-  { value: 'medium', label: 'medium' },
-  { value: 'difficult', label: 'difficult' }
+  { value: 'easy', label: 'Easy' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'difficult', label: 'Difficult' }
 ];
 
+const questionCount = computed(() =>
+  assignmentRows.value.reduce((total, row) => total + (row.availableCount ?? 0), 0)
+);
+
+const activeAssignments = computed(() =>
+  assignmentRows.value
+    .filter((row) => Boolean(row.topic))
+    .map((row) => ({
+      topic: row.topic,
+      difficulty_level: row.difficulty
+    }))
+);
+
 const canAssign = computed(
-  () =>
-    selectedStudents.value.length > 0 &&
-    assignmentSlots.value.every((slot) => slot.topic && slot.difficulty && slot.quantity > 0)
+  () => selectedStudents.value.length > 0 && activeAssignments.value.length > 0
 );
 
 const remainingStudents = computed(() =>
@@ -197,11 +201,7 @@ const requestPreview = computed(() =>
   JSON.stringify(
     {
       student_ids: selectedStudents.value,
-      slots: assignmentSlots.value.map((slot) => ({
-        topic: slot.topic || null,
-        difficulty_level: slot.difficulty,
-        quantity: slot.quantity
-      }))
+      assignments: activeAssignments.value
     },
     null,
     2
@@ -209,36 +209,42 @@ const requestPreview = computed(() =>
 );
 
 watch(
-  () => props.payload,
-  () => {
-    availableStudents.value = cloneStudents(studentsMap.value);
-    selectedStudents.value = [];
-    assignmentResult.value = null;
-  }
-);
-
-watch(
   topics,
   (next) => {
-    if (!next.length) return;
-    assignmentSlots.value.forEach((slot) => {
-      if (!slot.topic) slot.topic = next[0];
-      fetchSlotCount(slot);
+    assignmentRows.value.forEach((row) => {
+      if (!next.length) {
+        row.topic = '';
+      } else if (!row.topic || !next.includes(row.topic)) {
+        row.topic = next[0];
+      }
+      void refreshRowCount(row);
     });
   },
   { immediate: true }
 );
 
 watch(
-  () => assignmentSlots.value.map((slot) => `${slot.topic}|${slot.difficulty}`),
+  () => props.payload,
+  (next) => {
+    availableStudents.value = cloneStudents(studentsMap.value);
+    selectedStudents.value = [];
+    assignmentResult.value = null;
+    const incomingTopics = next?.topics ?? [];
+    if (!topics.value.length && Array.isArray(incomingTopics) && incomingTopics.length) {
+      topics.value = incomingTopics;
+    }
+  }
+);
+watch(
+  selectedStudents,
   () => {
-    assignmentSlots.value.forEach((slot) => fetchSlotCount(slot));
+    assignmentResult.value = null;
   },
-  { immediate: true }
+  { deep: true }
 );
 
 watch(
-  selectedStudents,
+  assignmentRows,
   () => {
     assignmentResult.value = null;
   },
@@ -254,30 +260,104 @@ watch(
 );
 
 watch(
-  classes,
-  (next) => {
-    if (!next.length) return;
-    if (!selectedClass.value) {
-      selectedClass.value = next[0].id;
-    }
+  availableStudents,
+  () => {
+    const validIds = new Set(
+      Object.values(availableStudents.value || {})
+        .flat()
+        .map((stu) => normalizeId(stu.id))
+    );
+    selectedStudents.value = selectedStudents.value.filter((id) => validIds.has(normalizeId(id)));
   },
-  { immediate: true }
+  { deep: true }
 );
 
-watch(selectedClass, (next) => {
-  if (next) {
-    ensureStudentsLoaded(next);
-  }
+onMounted(() => {
+  void loadTopics();
 });
 
-onMounted(() => {
-  fetchClasses();
-  fetchTopics();
-});
+async function loadTopics() {
+  topicLoading.value = true;
+  topicError.value = '';
+  try {
+    const response = await fetch(`${API_BASE_URL}/questions/topics`);
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Failed to load topics');
+    }
+    const data = await response.json();
+    if (!Array.isArray(data)) {
+      throw new Error('Topics format invalid');
+    }
+    topics.value = data;
+  } catch (error) {
+    topicError.value = error?.message ?? 'Failed to load topics';
+  } finally {
+    topicLoading.value = false;
+  }
+}
+
+async function refreshRowCount(row) {
+  const key = `${row.topic || ''}||${row.difficulty || ''}`;
+  if (!row.topic || !row.difficulty) {
+    row.availableCount = null;
+    row.countKey = key;
+    row.countError = '';
+    row.countLoading = false;
+    return;
+  }
+  if (row.countKey === key && !row.countLoading) {
+    return;
+  }
+  row.countLoading = true;
+  row.countError = '';
+  const token = Symbol();
+  row.fetchToken = token;
+  try {
+    const url = new URL(`${API_BASE_URL}/questions/count`);
+    url.searchParams.set('topic', row.topic);
+    url.searchParams.set('difficulty_level', row.difficulty);
+    const response = await fetch(url);
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || 'Question pool query failed');
+    }
+    const data = await response.json();
+    if (row.fetchToken !== token) return;
+    row.availableCount = Number.isFinite(data?.count) ? data.count : 0;
+    row.countKey = key;
+  } catch (error) {
+    if (row.fetchToken !== token) return;
+    row.availableCount = 0;
+    row.countError = error?.message ?? 'Question pool query failed';
+  } finally {
+    if (row.fetchToken === token) {
+      row.countLoading = false;
+    }
+  }
+}
+
+function handleTopicChange(row, value) {
+  if (row.topic === value) return;
+  row.topic = value;
+  row.countKey = '';
+  row.availableCount = null;
+  row.countError = '';
+  void refreshRowCount(row);
+}
+
+function handleDifficultyChange(row, value) {
+  if (row.difficulty === value) return;
+  row.difficulty = value;
+  row.countKey = '';
+  row.availableCount = null;
+  row.countError = '';
+  void refreshRowCount(row);
+}
 
 async function handleAssign() {
   if (!canAssign.value) {
-    errorText.value = '请选择班级、学生和专题后再提交';
+    errorText.value = '璇烽€夋嫨鐝骇銆佸鐢熷拰涓撻鍚庡啀鎻愪氦';
     return;
   }
   errorText.value = '';
@@ -287,28 +367,12 @@ async function handleAssign() {
 
   const payload = {
     student_ids: [...selectedStudents.value],
-    slots: assignmentSlots.value.map((slot) => ({
-      topic: slot.topic,
-      difficulty_level: slot.difficulty,
-      quantity: slot.quantity
-    }))
+    assignments: activeAssignments.value
   };
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/assign/one`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || '分配失败，请稍后重试');
-    }
-
-    const entries = data.assigned || [];
+  setTimeout(() => {
+    const entries = createMockAssignments(payload);
+    const data = { assigned: entries };
     assignmentResult.value = {
       timestamp: new Date().toLocaleString('zh-CN', { hour12: false }),
       entries,
@@ -316,54 +380,11 @@ async function handleAssign() {
     };
     removeAssignedStudents(payload.student_ids);
     submissionMessage.value = entries.length
-      ? `已成功为 ${entries.length} 名学生分配题目。`
-      : '已提交，未返回分配记录。';
+      ? `宸叉垚鍔熶负 ${entries.length} 鍚嶅鐢熷垎閰嶉鐩€俙
+      : '宸叉彁浜わ紝鏈繑鍥炲垎閰嶈褰曘€?;
     selectedStudents.value = [];
-  } catch (error) {
-    errorText.value = error?.message || '分配失败，请稍后重试';
-  } finally {
     isSubmitting.value = false;
-  }
-}
-
-function addSlot() {
-  assignmentSlots.value.push({
-    id: Date.now() + Math.random(),
-    topic: topics.value[0] ?? '',
-    difficulty: 'medium',
-    quantity: 1,
-    count: 0,
-    loading: false,
-    error: ''
-  });
-}
-
-function removeSlot(id) {
-  assignmentSlots.value = assignmentSlots.value.filter((slot) => slot.id !== id);
-}
-
-function fetchSlotCount(slot) {
-  if (!slot.topic) {
-    slot.count = 0;
-    slot.error = '';
-    return;
-  }
-  slot.loading = true;
-  slot.error = '';
-  fetch(`${API_BASE_URL}/questions/count?topic=${encodeURIComponent(slot.topic)}&difficulty_level=${encodeURIComponent(slot.difficulty)}`)
-    .then(async (response) => {
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || '查询题库数量失败');
-      }
-      slot.count = data.count ?? 0;
-    })
-    .catch((err) => {
-      slot.error = err?.message || '查询题库数量失败';
-    })
-    .finally(() => {
-      slot.loading = false;
-    });
+  }, 500);
 }
 
 function findStudentById(id) {
@@ -377,23 +398,14 @@ function findStudentById(id) {
 
 function removeAssignedStudents(ids = []) {
   if (!ids.length) return;
+  const updated = cloneStudents(availableStudents.value);
   const normalizedIds = new Set(ids.map((item) => normalizeId(item)).filter(Boolean));
-
-  const updatedBackend = cloneStudents(backendStudents.value);
-  Object.keys(updatedBackend).forEach((classId) => {
-    updatedBackend[classId] = (updatedBackend[classId] || []).filter(
+  Object.keys(updated).forEach((classId) => {
+    updated[classId] = (updated[classId] || []).filter(
       (stu) => !normalizedIds.has(normalizeId(stu.id))
     );
   });
-  backendStudents.value = updatedBackend;
-
-  const updatedLocal = cloneStudents(availableStudents.value);
-  Object.keys(updatedLocal).forEach((classId) => {
-    updatedLocal[classId] = (updatedLocal[classId] || []).filter(
-      (stu) => !normalizedIds.has(normalizeId(stu.id))
-    );
-  });
-  availableStudents.value = updatedLocal;
+  availableStudents.value = updated;
 }
 
 function cloneStudents(source = {}) {
@@ -409,97 +421,42 @@ function normalizeId(id) {
   return String(id);
 }
 
-async function fetchClasses() {
-  classLoading.value = true;
-  dataError.value = '';
-  try {
-    const response = await fetch(`${API_BASE_URL}/classes/list`);
-    const data = await response.json().catch(() => []);
-    if (!response.ok) {
-      throw new Error(data.error || '获取班级信息失败');
-    }
-    backendClasses.value = (data || []).map((item) => normalizeClass(item));
-    if (!selectedClass.value && backendClasses.value.length) {
-      selectedClass.value = backendClasses.value[0].id;
-    }
-  } catch (error) {
-    dataError.value = error?.message || '获取班级信息失败';
-  } finally {
-    classLoading.value = false;
-  }
-}
-
-async function fetchTopics() {
-  topicLoading.value = true;
-  try {
-    const response = await fetch(`${API_BASE_URL}/questions/topics`);
-    const data = await response.json().catch(() => []);
-    if (!response.ok) {
-      throw new Error(data.error || '获取专题失败');
-    }
-    backendTopics.value = (data || []).filter(Boolean);
-    assignmentSlots.value.forEach((slot) => {
-      if (!slot.topic && backendTopics.value.length) {
-        slot.topic = backendTopics.value[0];
-      }
+function createMockAssignments(payload) {
+  const rows = payload.assignments || [];
+  const assignments = [];
+  (payload.student_ids || []).forEach((stuId) => {
+    rows.forEach((row, rowIndex) => {
+      const base = row?.topic?.slice(0, 1) || 'Q';
+      assignments.push({
+        student_id: stuId,
+        student_name: findStudentById(stuId)?.name ?? `ID ${stuId}`,
+        question_id: `${base}${stuId}${rowIndex + 1}`,
+        position: rowIndex + 1
+      });
     });
-  } catch (error) {
-    // keep fallback
-  } finally {
-    topicLoading.value = false;
-  }
+  });
+  return assignments;
 }
 
-async function ensureStudentsLoaded(classId) {
-  if (!classId) return;
-  const existing = backendStudents.value[classId];
-  if (existing && existing.length) return;
-  await fetchStudentsForClass(classId);
+function addAssignmentRow() {
+  const row = createAssignmentRow(topics.value[0] ?? '', 'medium');
+  assignmentRows.value.push(row);
+  void refreshRowCount(row);
 }
 
-async function fetchStudentsForClass(classId) {
-  if (!classId) return;
-  studentLoading.value = true;
-  dataError.value = '';
-  try {
-    const response = await fetch(`${API_BASE_URL}/students/by_class?class_id=${classId}`);
-    const data = await response.json().catch(() => []);
-    if (!response.ok) {
-      throw new Error(data.error || '获取学生信息失败');
-    }
-    backendStudents.value = {
-      ...backendStudents.value,
-      [classId]: (data || []).map((item) => normalizeStudent(item))
-    };
-  } catch (error) {
-    dataError.value = error?.message || '获取学生信息失败';
-  } finally {
-    studentLoading.value = false;
-  }
+function removeAssignmentRow(id) {
+  if (assignmentRows.value.length === 1) return;
+  assignmentRows.value = assignmentRows.value.filter((row) => row.id !== id);
 }
 
-function normalizeClass(entry = {}) {
-  return {
-    id: entry.id ?? entry.class_id ?? entry.classId,
-    name: entry.name ?? entry.class_name ?? entry.className ?? '未知班级'
-  };
-}
-
-function normalizeStudent(entry = {}) {
-  return {
-    id: entry.id ?? entry.student_id ?? entry.studentId,
-    name: entry.name ?? entry.student_name ?? entry.studentName ?? '未知学生'
-  };
-}
 </script>
-
 
 <style scoped>
 .assign-card {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 24px;
+  gap: 10px;
+  padding: 18px;
   border-radius: 26px;
   border: 1px solid rgba(148, 163, 184, 0.25);
   background: rgba(15, 23, 42, 0.92);
@@ -511,11 +468,11 @@ function normalizeStudent(entry = {}) {
 .panel {
   border-radius: 20px;
   border: 1px solid rgba(148, 163, 184, 0.2);
-  padding: 18px;
+  padding: 14px;
   background: rgba(2, 6, 23, 0.75);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .section-card.bare {
@@ -561,55 +518,138 @@ function normalizeStudent(entry = {}) {
   color: #86efac;
   font-size: 12px;
 }
-.status-line {
-  margin: 0;
-  font-size: 12px;
-  color: rgba(226, 232, 240, 0.75);
-}
-.loading-text {
-  font-style: italic;
-  color: rgba(203, 213, 225, 0.8);
-}
 
 .topic-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
-.assignment-slot {
+
+.topic-status {
+  min-height: 20px;
+}
+
+.helper-text {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.assignment-card__meta {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.icon-btn {
+  border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 16px;
+  padding: 4px 10px;
+  color: #f87171;
+  font-size: 13px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  border-color: rgba(248, 113, 113, 0.8);
+  color: #fee2e2;
+}
+
+.assignment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, 260px);
+  justify-content: center;
+  gap: 10px;
+}
+
+.assignment-card {
+  width: 260px;
+  min-height: 210px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
   padding: 12px;
+  background: rgba(15, 23, 42, 0.8);
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: rgba(15, 23, 42, 0.5);
+  box-shadow: 0 0 0 transparent;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.assignment-slot .field {
-  margin-bottom: 0;
+
+.assignment-card:hover {
+  border-color: rgba(14, 165, 233, 0.5);
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.35);
 }
-.count-input {
-  width: 100%;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  padding: 6px 8px;
-  background: rgba(15, 23, 42, 0.65);
-  color: #f8fafc;
-}
-.slot-count {
-  font-size: 12px;
-  color: rgba(148, 163, 184, 0.9);
-}
-.remove-slot {
-  align-self: flex-end;
-  padding: 4px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(248, 113, 113, 0.6);
-  color: #f87171;
-}
-.add-slot-btn {
-  justify-content: center;
+
+.assignment-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 8px;
+}
+
+.assignment-card__index {
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  color: rgba(226, 232, 240, 0.6);
+}
+
+.assignment-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.assignment-label select {
+  min-width: 100%;
+}
+
+.remove-row-btn {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.7);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.remove-row-btn:hover {
+  color: #fee2e2;
+  background: rgba(248, 113, 113, 0.2);
+}
+
+.secondary-btn {
+  align-self: flex-start;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 12px;
+  padding: 8px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: #bae6fd;
+}
+
+.secondary-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.add-row-btn {
+  max-width: 220px;
+}
+
+.add-row-card {
+  width: 260px;
+  min-height: 210px;
+  border-radius: 18px;
+  border: 1px dashed rgba(59, 130, 246, 0.6);
+  background: rgba(2, 6, 23, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  gap: 6px;
 }
 
 .field {
@@ -626,6 +666,7 @@ select {
   background: rgba(15, 23, 42, 0.85);
   color: #f8fafc;
   padding: 8px 10px;
+  width: 100%;
 }
 
 .difficulty-tabs {
@@ -651,14 +692,6 @@ select {
   border-color: rgba(236, 72, 153, 0.7);
   color: #f472b6;
   background: rgba(236, 72, 153, 0.12);
-}
-
-.question-count {
-  border-radius: 999px;
-  padding: 4px 12px;
-  background: rgba(14, 165, 233, 0.12);
-  color: #7dd3fc;
-  font-size: 12px;
 }
 
 .panel-head {
@@ -756,3 +789,5 @@ select {
   }
 }
 </style>
+
+
