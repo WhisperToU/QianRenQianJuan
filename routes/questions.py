@@ -87,3 +87,14 @@ def delete_question(question_id):
     finally:
         cursor.close()
         conn.close()
+
+# routes/questions.py 添加：
+@questions_bp.route("/topics", methods=["GET"])
+def list_topics():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT DISTINCT topic FROM questions ORDER BY topic")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify([r["topic"] for r in rows if r["topic"]])
