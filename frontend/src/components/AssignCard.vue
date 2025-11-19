@@ -8,6 +8,10 @@
         v-model="selectedStudents"
       />
     </section>
+    <p v-if="dataError" class="error-text status-line">{{ dataError }}</p>
+    <p v-else-if="classLoading" class="loading-text status-line">正在同步班级数据...</p>
+    <p v-else-if="studentLoading" class="loading-text status-line">正在同步学生数据...</p>
+    <p v-else-if="topicLoading" class="loading-text status-line">正在加载专题...</p>
 
     <section class="section-card topic-panel">
       <div class="section-head compact">
@@ -67,7 +71,7 @@
     <section v-if="assignmentResult" class="panel result-panel">
       <div class="panel-head">
         <div>
-          <p class="panel-kicker">Mock Response</p>
+          <p class="panel-kicker">分配结果</p>
           <h4>assigned</h4>
         </div>
         <span class="timestamp">{{ assignmentResult.timestamp }}</span>
@@ -85,7 +89,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import ClassCard from './ClassCard.vue';
 
 const props = defineProps({
@@ -95,11 +99,29 @@ const props = defineProps({
   }
 });
 
-const classes = computed(() => props.payload?.classes ?? []);
-const studentsMap = computed(() => props.payload?.students ?? {});
-const topics = computed(() => props.payload?.topics ?? []);
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+const backendClasses = ref([]);
+const backendStudents = ref({});
+const backendTopics = ref([]);
+const classLoading = ref(false);
+const studentLoading = ref(false);
+const topicLoading = ref(false);
+const dataError = ref('');
+
+const classes = computed(() =>
+  backendClasses.value.length ? backendClasses.value : props.payload?.classes ?? []
+);
+const studentsMap = computed(() =>
+  Object.keys(backendStudents.value).length ? backendStudents.value : props.payload?.students ?? {}
+);
+const topics = computed(() =>
+  backendTopics.value.length ? backendTopics.value : props.payload?.topics ?? []
+);
 
 const availableStudents = ref(cloneStudents(studentsMap.value));
+
+const selectedClass = ref(null);
 
 const classCardPayload = computed(() => ({
   classes: classes.value,
@@ -115,15 +137,15 @@ const submissionMessage = ref('');
 const isSubmitting = ref(false);
 
 const difficultyOptions = [
-  { value: 'easy', label: '基础' },
-  { value: 'medium', label: '进阶' },
-  { value: 'hard', label: '挑战' }
+  { value: 'easy', label: 'easy' },
+  { value: 'medium', label: 'medium' },
+  { value: 'difficult', label: 'difficult' }
 ];
 
 const difficultyMultiplier = {
   easy: 1.2,
   medium: 1,
-  hard: 0.6
+  difficult: 0.6
 };
 
 const questionCount = computed(() => {
@@ -210,6 +232,27 @@ watch(
   { deep: true }
 );
 
+watch(
+  classes,
+  (next) => {
+    if (!hasAssignedClass() && next.length) {
+      selectedClass.value = next[0]?.id ?? null;
+    }
+  },
+  { immediate: true }
+);
+
+watch(selectedClass, (next) => {
+  if (next) {
+    ensureStudentsLoaded(next);
+  }
+});
+
+onMounted(() => {
+  fetchClasses();
+  fetchTopics();
+});
+
 async function handleAssign() {
   if (!canAssign.value) {
     errorText.value = '请选择班级、学生和专题后再提交';
@@ -226,9 +269,21 @@ async function handleAssign() {
     difficulty_level: selectedDifficulty.value
   };
 
-  setTimeout(() => {
-    const entries = createMockAssignments(payload);
-    const data = { assigned: entries };
+  try {
+    const response = await fetch(`${API_BASE_URL}/assign/one`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || '分配失败，请稍后重试');
+    }
+
+    const entries = data.assigned || [];
     assignmentResult.value = {
       timestamp: new Date().toLocaleString('zh-CN', { hour12: false }),
       entries,
@@ -239,8 +294,11 @@ async function handleAssign() {
       ? `已成功为 ${entries.length} 名学生分配题目。`
       : '已提交，未返回分配记录。';
     selectedStudents.value = [];
+  } catch (error) {
+    errorText.value = error?.message || '分配失败，请稍后重试';
+  } finally {
     isSubmitting.value = false;
-  }, 500);
+  }
 }
 
 function findStudentById(id) {
@@ -254,14 +312,23 @@ function findStudentById(id) {
 
 function removeAssignedStudents(ids = []) {
   if (!ids.length) return;
-  const updated = cloneStudents(availableStudents.value);
   const normalizedIds = new Set(ids.map((item) => normalizeId(item)).filter(Boolean));
-  Object.keys(updated).forEach((classId) => {
-    updated[classId] = (updated[classId] || []).filter(
+
+  const updatedBackend = cloneStudents(backendStudents.value);
+  Object.keys(updatedBackend).forEach((classId) => {
+    updatedBackend[classId] = (updatedBackend[classId] || []).filter(
       (stu) => !normalizedIds.has(normalizeId(stu.id))
     );
   });
-  availableStudents.value = updated;
+  backendStudents.value = updatedBackend;
+
+  const updatedLocal = cloneStudents(availableStudents.value);
+  Object.keys(updatedLocal).forEach((classId) => {
+    updatedLocal[classId] = (updatedLocal[classId] || []).filter(
+      (stu) => !normalizedIds.has(normalizeId(stu.id))
+    );
+  });
+  availableStudents.value = updatedLocal;
 }
 
 function cloneStudents(source = {}) {
@@ -277,17 +344,91 @@ function normalizeId(id) {
   return String(id);
 }
 
-function createMockAssignments(payload) {
-  return (payload.student_ids || []).map((stuId, idx) => {
-    const base = selectedTopic.value?.slice(0, 1) || 'Q';
-    return {
-      student_id: stuId,
-      student_name: findStudentById(stuId)?.name ?? `ID ${stuId}`,
-      question_id: `${base}${stuId}${idx + 1}`,
-      position: idx + 1
-    };
-  });
+function hasAssignedClass() {
+  return Boolean(selectedClass.value);
 }
+
+async function fetchClasses() {
+  classLoading.value = true;
+  dataError.value = '';
+  try {
+    const response = await fetch(`${API_BASE_URL}/classes/list`);
+    const data = await response.json().catch(() => []);
+    if (!response.ok) {
+      throw new Error(data.error || '获取班级信息失败');
+    }
+    backendClasses.value = (data || []).map((item) => normalizeClass(item));
+    if (!selectedClass.value && backendClasses.value.length) {
+      selectedClass.value = backendClasses.value[0].id;
+    }
+  } catch (error) {
+    dataError.value = error?.message || '获取班级信息失败';
+  } finally {
+    classLoading.value = false;
+  }
+}
+
+async function fetchTopics() {
+  topicLoading.value = true;
+  try {
+    const response = await fetch(`${API_BASE_URL}/questions/topics`);
+    const data = await response.json().catch(() => []);
+    if (!response.ok) {
+      throw new Error(data.error || '获取专题失败');
+    }
+    backendTopics.value = (data || []).filter(Boolean);
+    if (backendTopics.value.length && !selectedTopic.value) {
+      selectedTopic.value = backendTopics.value[0];
+    }
+  } catch (error) {
+    // keep fallback topics if api fails
+  } finally {
+    topicLoading.value = false;
+  }
+}
+
+async function ensureStudentsLoaded(classId) {
+  if (!classId) return;
+  const existing = backendStudents.value[classId];
+  if (existing && existing.length) return;
+  await fetchStudentsForClass(classId);
+}
+
+async function fetchStudentsForClass(classId) {
+  if (!classId) return;
+  studentLoading.value = true;
+  dataError.value = '';
+  try {
+    const response = await fetch(`${API_BASE_URL}/students/by_class?class_id=${classId}`);
+    const data = await response.json().catch(() => []);
+    if (!response.ok) {
+      throw new Error(data.error || '获取学生信息失败');
+    }
+    backendStudents.value = {
+      ...backendStudents.value,
+      [classId]: (data || []).map((item) => normalizeStudent(item))
+    };
+  } catch (error) {
+    dataError.value = error?.message || '获取学生信息失败';
+  } finally {
+    studentLoading.value = false;
+  }
+}
+
+function normalizeClass(entry = {}) {
+  return {
+    id: entry.id ?? entry.class_id ?? entry.classId,
+    name: entry.name ?? entry.class_name ?? entry.className ?? '未知班级'
+  };
+}
+
+function normalizeStudent(entry = {}) {
+  return {
+    id: entry.id ?? entry.student_id ?? entry.studentId,
+    name: entry.name ?? entry.student_name ?? entry.studentName ?? '未知学生'
+  };
+}
+
 </script>
 
 <style scoped>
@@ -356,6 +497,15 @@ function createMockAssignments(payload) {
   background: rgba(34, 197, 94, 0.18);
   color: #86efac;
   font-size: 12px;
+}
+.status-line {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.75);
+}
+.loading-text {
+  font-style: italic;
+  color: rgba(203, 213, 225, 0.8);
 }
 
 .topic-grid {

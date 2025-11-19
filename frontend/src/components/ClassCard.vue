@@ -159,7 +159,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const ADD_CLASS_TAB = '__add_class__';
 
@@ -168,7 +168,7 @@ const emit = defineEmits(['importClass', 'update:modelValue']);
 const props = defineProps({
   payload: {
     type: Object,
-    required: true
+    default: () => ({ classes: [], students: {} })
   },
   selectionMode: {
     type: Boolean,
@@ -180,9 +180,11 @@ const props = defineProps({
   }
 });
 
-const classList = ref(cloneClasses(props.payload.classes));
-const selectedClass = ref(classList.value[0]?.id ?? null);
-const studentState = ref(cloneStudents(props.payload.students));
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+const classList = ref([]);
+const selectedClass = ref(null);
+const studentState = ref({});
 const newStudentName = ref('');
 const newStudentInput = ref(null);
 const excelFileName = ref('');
@@ -193,65 +195,56 @@ const nextClassId = ref(calcNextClassId(classList.value));
 const newClassName = ref('');
 const importError = ref('');
 const selectedStudentIds = ref(new Set(props.modelValue || []));
+const hasSyncedClasses = ref(false);
 
 const selectedCount = computed(() => selectedStudentIds.value.size);
-
+const totalStudents = computed(() =>
+  Object.values(studentState.value).reduce((sum, list) => sum + list.length, 0)
+);
+const averageStudents = computed(() =>
+  classList.value.length ? Math.round(totalStudents.value / classList.value.length) : 0
+);
 const isAddMode = computed(() => !props.selectionMode && selectedClass.value === ADD_CLASS_TAB);
-
 const currentClass = computed(() =>
   isAddMode.value ? null : classList.value.find((c) => c.id === selectedClass.value)
 );
-
 const currentStudents = computed(() =>
   isAddMode.value ? [] : getStudents(selectedClass.value)
-);
-
-const canConfirmImport = computed(
-  () => Boolean(newClassName.value.trim()) && importedStudents.value.length > 0
-);
-
-watch(
-  () => props.payload.students,
-  (next) => {
-    const incoming = cloneStudents(next);
-    const merged = { ...incoming };
-    Object.entries(studentState.value || {}).forEach(([classId, list]) => {
-      if (!merged[classId]) {
-        merged[classId] = list.map((stu) => ({ ...stu }));
-      }
-    });
-    studentState.value = merged;
-    nextStudentId.value = calcNextId(studentState.value);
-  },
-  { deep: true }
 );
 
 watch(
   () => props.payload.classes,
   (next) => {
-    const incoming = cloneClasses(next || []);
-    const leftovers = classList.value.filter(
-      (cls) => !incoming.some((item) => item.id === cls.id)
-    );
-    classList.value = [...incoming, ...leftovers];
-    nextClassId.value = calcNextClassId(classList.value);
-    if (!isAddMode.value) {
-      const exists = classList.value.some((cls) => cls.id === selectedClass.value);
-      if (!exists) selectedClass.value = classList.value[0]?.id ?? null;
+    if (hasSyncedClasses.value || !next || classList.value.length) return;
+    if (next && next.length) {
+      classList.value = cloneClasses(next);
+      nextClassId.value = calcNextClassId(classList.value);
+      selectedClass.value = classList.value[0]?.id ?? selectedClass.value;
     }
   },
-  { deep: true }
+  { deep: true, immediate: true }
 );
 
-watch(selectedClass, () => {
+watch(
+  () => props.payload.students,
+  (next) => {
+    if (hasSyncedClasses.value || !next || Object.keys(studentState.value).length) return;
+    studentState.value = cloneStudents(next);
+    nextStudentId.value = calcNextId(studentState.value);
+  },
+  { deep: true, immediate: true }
+);
+
+watch(selectedClass, (next) => {
   newStudentName.value = '';
   actionMessage.value = '';
   excelFileName.value = '';
   importedStudents.value = [];
   importError.value = '';
   newClassName.value = '';
-  if (!isAddMode.value) {
+  if (!isAddMode.value && next) {
     focusAddInput();
+    ensureStudentsLoaded(next);
   }
 });
 
@@ -263,12 +256,24 @@ watch(
   { deep: true }
 );
 
+watch(
+  classList,
+  (next) => {
+    if (!next.length) return;
+    if (!selectedClass.value) {
+      selectedClass.value = next[0].id;
+    }
+  },
+  { immediate: true }
+);
+
 function getStudents(classId) {
   if (!classId) return [];
   return studentState.value[classId] || [];
 }
 
 function selectClass(id) {
+  if (selectedClass.value === id) return;
   selectedClass.value = id;
 }
 
@@ -356,7 +361,7 @@ function removeStudent(studentId) {
   const removed = list.find((stu) => stu.id === studentId);
   const updated = { ...studentState.value, [classId]: list.filter((stu) => stu.id !== studentId) };
   studentState.value = updated;
-  actionMessage.value = removed ? `已删除 ${removed.name}` : '已删除学生';
+  actionMessage.value = removed ? `已删掉 ${removed.name}` : '已删除学生';
 }
 
 function confirmImport() {
@@ -394,6 +399,12 @@ function confirmImport() {
   selectedClass.value = classId;
 }
 
+function progress(classId) {
+  const count = getStudents(classId).length;
+  if (!totalStudents.value) return 0;
+  return Math.round((count / totalStudents.value) * 100);
+}
+
 function cloneStudents(data = {}) {
   const copy = {};
   Object.entries(data || {}).forEach(([classId, list]) => {
@@ -403,7 +414,7 @@ function cloneStudents(data = {}) {
 }
 
 function cloneClasses(list = []) {
-  return (list || []).map((cls) => ({ ...cls }));
+  return (list || []).map((cls) => normalizeClass(cls));
 }
 
 function calcNextId(map = {}) {
@@ -419,6 +430,68 @@ function calcNextId(map = {}) {
 function calcNextClassId(list = []) {
   return (list || []).reduce((max, cls) => (cls.id > max ? cls.id : max), 0) + 1;
 }
+
+function normalizeClass(entry = {}) {
+  return {
+    id: entry.id ?? entry.class_id ?? entry.classId,
+    name: entry.name ?? entry.class_name ?? entry.className ?? '未命名班级'
+  };
+}
+
+function normalizeStudent(entry = {}) {
+  return {
+    id: entry.id ?? entry.student_id ?? entry.studentId,
+    name: entry.name ?? entry.student_name ?? entry.studentName ?? ''
+  };
+}
+
+async function fetchClassesFromApi() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/classes/list`);
+    const data = await response.json().catch(() => []);
+    if (!response.ok) {
+      throw new Error(data.error || '获取班级信息失败');
+    }
+    const normalized = (data || []).map((item) => normalizeClass(item));
+    if (normalized.length) {
+      hasSyncedClasses.value = true;
+      classList.value = normalized;
+      nextClassId.value = calcNextClassId(classList.value);
+      studentState.value = {};
+      selectedClass.value = normalized[0].id;
+      ensureStudentsLoaded(selectedClass.value);
+    }
+  } catch (error) {
+    console.warn('班级数据同步失败', error);
+  }
+}
+
+async function ensureStudentsLoaded(classId) {
+  if (!classId || classId === ADD_CLASS_TAB) return;
+  const existing = studentState.value[classId];
+  if (existing && existing.length) return;
+  await fetchStudentsForClass(classId);
+}
+
+async function fetchStudentsForClass(classId) {
+  if (!classId) return;
+  try {
+    const response = await fetch(`${API_BASE_URL}/students/by_class?class_id=${classId}`);
+    const data = await response.json().catch(() => []);
+    if (!response.ok) {
+      throw new Error(data.error || '获取学生信息失败');
+    }
+    const normalized = (data || []).map((item) => normalizeStudent(item));
+    studentState.value = { ...studentState.value, [classId]: normalized };
+    nextStudentId.value = calcNextId(studentState.value);
+  } catch (error) {
+    console.warn('学生数据同步失败', error);
+  }
+}
+
+onMounted(() => {
+  fetchClassesFromApi();
+});
 
 async function extractStudentNames(file) {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
@@ -449,7 +522,6 @@ function parseStudentNamesFromText(text = '') {
   const rows = filtered.map((row) => splitRow(row, delimiter));
   return parseRowsForNames(rows);
 }
-
 function parseRowsForNames(rows = []) {
   const headerRowIndex = rows.findIndex((cols) =>
     cols.some((cell) => /姓名|name/i.test(String(cell || '').trim()))
@@ -471,7 +543,7 @@ function parseRowsForNames(rows = []) {
 }
 
 function detectDelimiter(row) {
-  if (row.includes('\t')) return '\t';
+  if (row.includes('	')) return '	';
   if (row.includes(';')) return ';';
   if (row.includes('|')) return '|';
   return ',';
@@ -489,6 +561,7 @@ function loadXlsxModule() {
   return xlsxLoader;
 }
 </script>
+
 
 <style scoped>
 .class-card {

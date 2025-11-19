@@ -2,7 +2,7 @@
   <section class="question-grid">
     <article
       v-for="card in cards"
-      :key="card.id"
+      :key="card.uid"
       :class="['question-card', { saved: card.saved }]"
     >
       <header class="card-head">
@@ -81,12 +81,13 @@
         <button
           type="button"
           class="primary-btn"
-          :disabled="!card.editing"
+          :disabled="!card.editing || card.saving"
           @click="saveCard(card)"
         >
-          保存
+          {{ card.saving ? '保存中...' : '保存' }}
         </button>
       </div>
+      <p v-if="card.errorMsg" class="error-tip">{{ card.errorMsg }}</p>
     </article>
   </section>
 </template>
@@ -103,15 +104,27 @@ const props = defineProps({
 
 const emit = defineEmits(['save']);
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 const difficultyLabel = {
   easy: 'easy',
   medium: 'medium',
-  hard: 'difficult'
+  difficult: 'difficult'
 };
 
 const difficultyOptions = Object.keys(difficultyLabel);
 
 const cards = ref(createCards(props.payload.questions));
+
+function normalizeDifficulty(value) {
+  const normalized = String(value || '')
+    .toLowerCase()
+    .trim();
+  if (normalized === 'easy') return 'easy';
+  if (normalized === 'medium') return 'medium';
+  if (normalized === 'hard' || normalized === 'difficult') return 'difficult';
+  return 'medium';
+}
 
 watch(
   () => props.payload.questions,
@@ -123,36 +136,80 @@ watch(
 
 function createCards(list = []) {
   return (list || []).map((item, idx) => ({
-    id: item.id ?? idx + 1,
+    uid: item.uid ?? item.id ?? item.question_id ?? `temp-${idx + 1}`,
+    id: item.question_id ?? null,
     title: item.title ?? `题目 ${idx + 1}`,
     topic: item.topic ?? '',
-    difficulty: item.difficulty ?? 'medium',
+    difficulty: normalizeDifficulty(item.difficulty ?? item.difficulty_level ?? 'medium'),
     question: item.question ?? '',
     answer: item.answer ?? '',
     type: item.type,
     duration: item.duration,
     editing: false,
-    saved: false
+    saved: Boolean(item.saved || item.question_id),
+    saving: false,
+    errorMsg: ''
   }));
 }
 
 function toggleEdit(card) {
   card.editing = !card.editing;
+  if (card.editing) {
+    card.saved = false;
+    card.errorMsg = '';
+  } else if (card.id) {
+    card.saved = true;
+  }
 }
 
-function saveCard(card) {
+async function saveCard(card) {
+  if (!card.editing || card.saving) return;
+
   const payload = {
-    id: card.id,
     title: card.title,
     topic: card.topic,
-    difficulty: card.difficulty,
-    question: card.question,
-    answer: card.answer
+    difficulty_level: normalizeDifficulty(card.difficulty),
+    question_text: card.question,
+    answer_text: card.answer,
+    type: card.type,
+    duration: card.duration
   };
-  emit('save', payload);
-  card.saved = true;
-  card.editing = false;
-  console.info('保存题目到数据库（mock）', payload);
+
+  const isUpdate = Boolean(card.id);
+  const url = isUpdate
+    ? `${API_BASE_URL}/questions/${card.id}`
+    : `${API_BASE_URL}/questions`;
+
+  card.saving = true;
+  card.errorMsg = '';
+
+  try {
+    const response = await fetch(url, {
+      method: isUpdate ? 'PUT' : 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || '保存失败，请稍后重试');
+    }
+
+    const persistedId = data.question_id ?? data.id;
+    if (persistedId) {
+      card.id = persistedId;
+    }
+
+    card.saved = true;
+    card.editing = false;
+    emit('save', { ...payload, id: card.id });
+  } catch (error) {
+    card.errorMsg = error?.message || '保存失败，请稍后重试';
+  } finally {
+    card.saving = false;
+  }
 }
 </script>
 
@@ -273,7 +330,7 @@ function saveCard(card) {
   color: #fb923c;
 }
 
-.difficulty-pill[data-level='hard'] {
+.difficulty-pill[data-level='difficult'] {
   background: rgba(248, 113, 113, 0.18);
   color: #fca5a5;
 }
@@ -388,5 +445,12 @@ function saveCard(card) {
 .question-card.saved .qa-text {
   color: rgba(226, 232, 240, 0.78);
   font-weight: 600;
+}
+
+.error-tip {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #f87171;
+  text-align: right;
 }
 </style>
