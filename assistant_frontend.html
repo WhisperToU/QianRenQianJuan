@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>教学助手聊天界面</title>
+    <style>
+        :root {
+            font-family: "Segoe UI", system-ui, sans-serif;
+            color: #0f172a;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #e2e8f0;
+            display: flex;
+            justify-content: center;
+            padding: 24px;
+        }
+        .shell {
+            width: min(1200px, 100%);
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 30px 60px rgba(15, 23, 42, 0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        header {
+            padding: 18px 28px;
+            background: linear-gradient(135deg, #2563eb, #0f62fe);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+        .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px 28px;
+            border-bottom: 1px solid #dbeafe;
+            background: #f8fafc;
+        }
+        .quick-actions button {
+            border: 1px solid #bfdbfe;
+            background: #e0f2fe;
+            color: #1d4ed8;
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: #f4f6fb;
+        }
+        .message {
+            display: flex;
+            margin-bottom: 18px;
+            gap: 12px;
+        }
+        .message.assistant .bubble {
+            background: white;
+            border: 1px solid #dbeafe;
+            box-shadow: 0 12px 24px rgba(37, 99, 235, 0.08);
+        }
+        .message.user {
+            flex-direction: row-reverse;
+        }
+        .message.user .bubble {
+            background: #2563eb;
+            color: white;
+        }
+        .bubble {
+            max-width: 75%;
+            padding: 14px 18px;
+            border-radius: 20px;
+            line-height: 1.5;
+            font-size: 15px;
+        }
+        .cards {
+            margin-top: 14px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 16px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            background: #e0f2fe;
+            color: #0369a1;
+        }
+        .card textarea,
+        .card select,
+        .card input {
+            border-radius: 10px;
+            border: 1px solid #cbd5f5;
+            font-family: inherit;
+            padding: 8px 10px;
+            font-size: 14px;
+        }
+        .card button {
+            border: none;
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        .btn-ghost {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        .input-bar {
+            padding: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .input-bar form {
+            display: flex;
+            gap: 12px;
+        }
+        .input-bar textarea {
+            flex: 1;
+            resize: none;
+            border-radius: 16px;
+            border: 1px solid #cbd5f5;
+            padding: 12px 16px;
+            font-size: 15px;
+            min-height: 60px;
+        }
+        .input-bar button {
+            border: none;
+            border-radius: 16px;
+            background: #2563eb;
+            color: white;
+            padding: 0 28px;
+            font-size: 15px;
+        }
+        .student-chip-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .student-chip {
+            background: #e2e8f0;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 13px;
+        }
+        .log {
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 12px;
+            padding: 10px;
+            font-size: 12px;
+            white-space: pre-line;
+        }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <header>
+        <div>
+            <h1>深度教学助手</h1>
+            <small>Mock UI | ChatGPT 风格</small>
+        </div>
+        <span class="badge">预览模式</span>
+    </header>
+    <div class="quick-actions">
+        <button data-prompt="请出 5 道函数题">出题示例</button>
+        <button data-prompt="展示题库结构概览">题库概览</button>
+        <button data-prompt="列出班级和学生情况">班级/学生管理</button>
+        <button data-prompt="给三班学生布置作业">分配题目</button>
+    </div>
+    <div id="messages" class="messages"></div>
+    <div class="input-bar">
+        <form id="promptForm">
+            <textarea id="promptInput" placeholder="告诉我“出 5 道分数题”或“列出班级情况”等指令..."></textarea>
+            <button type="submit">发送</button>
+        </form>
+    </div>
+</div>
+
+<template id="question-card-template">
+    <div class="card question-card">
+        <div>
+            <h3></h3>
+            <small>DeepSeek 模拟结果，可编辑后写入题库</small>
+        </div>
+        <div>
+            <span class="badge topic"></span>
+            <span class="badge difficulty"></span>
+        </div>
+        <label>题干</label>
+        <textarea class="question-text" rows="4" disabled></textarea>
+        <label>答案</label>
+        <textarea class="answer-text" rows="3" disabled></textarea>
+        <div>
+            <button class="btn-ghost toggle-edit">编辑</button>
+            <button class="btn-primary save-btn">保存</button>
+        </div>
+        <div class="log hidden"></div>
+    </div>
+</template>
+
+<template id="overview-card-template">
+    <div class="card overview-card">
+        <div>
+            <h3>题库结构概览</h3>
+            <small>来自 teaching_assistant 数据库（模拟）</small>
+        </div>
+        <div class="overview-headline"></div>
+        <div class="overview-topics"></div>
+    </div>
+</template>
+
+<template id="class-card-template">
+    <div class="card class-card">
+        <div>
+            <h3>班级与学生</h3>
+            <small>Mock API：classes/students</small>
+        </div>
+        <div class="class-lists"></div>
+        <div class="class-detail">
+            <em>点击下方班级查看学生</em>
+        </div>
+    </div>
+</template>
+
+<template id="assign-card-template">
+    <div class="card assign-card">
+        <div>
+            <h3>分配题目</h3>
+            <small>Mock POST /assign/one</small>
+        </div>
+        <label>班级</label>
+        <select class="class-select"></select>
+        <label>学生（多选）</label>
+        <div class="student-list" style="max-height: 160px; overflow-y: auto;"></div>
+        <label>专题</label>
+        <select class="topic-select"></select>
+        <label>难度</label>
+        <select class="difficulty-select">
+            <option value="easy">easy</option>
+            <option value="medium">medium</option>
+            <option value="hard">hard</option>
+        </select>
+        <button class="btn-primary assign-btn">生成任务</button>
+        <div class="log hidden"></div>
+    </div>
+</template>
+
+<script>
+const mockTopics = ["分数四则运算", "函数与图像", "几何思维", "概率初步"];
+const mockClasses = [
+    { id: "1", name: "五年级一班" },
+    { id: "2", name: "五年级三班" }
+];
+const mockStudents = {
+    "1": [
+        { id: 1, name: "张星辰" },
+        { id: 2, name: "李安同" },
+        { id: 3, name: "黄可盈" }
+    ],
+    "2": [
+        { id: 4, name: "周瑾瑜" },
+        { id: 5, name: "秦慧雯" },
+        { id: 6, name: "罗煊" }
+    ]
+};
+
+const mockOverview = {
+    totalTopics: 7,
+    totalQuestions: 214,
+    tables: ["questions", "assigned_questions", "students", "classes", "student_records"],
+    topics: [
+        {
+            name: "分数四则运算",
+            count: 48,
+            difficulties: {
+                easy: { count: 18, sample: "求 3/5 + 2/7，写出化简过程" },
+                medium: { count: 20, sample: "解方程：x - 2/3 = 1/4，并分析常见错误" },
+                hard: { count: 10, sample: "若 a/b + c/d = 1，求最简分数组合" }
+            }
+        },
+        {
+            name: "函数与图像",
+            count: 36,
+            difficulties: {
+                easy: { count: 12, sample: "已知 y = 2x，求 x=5 时的 y" },
+                medium: { count: 15, sample: "画出 y = |x-2| 图像并说明关键点" },
+                hard: { count: 9, sample: "讨论 y=x^2+kx+3 在 x>0 的单调性" }
+            }
+        }
+    ]
+};
+
+const messagesEl = document.getElementById("messages");
+const form = document.getElementById("promptForm");
+const input = document.getElementById("promptInput");
+const quick = document.querySelector(".quick-actions");
+
+function addMessage(role, text, extra) {
+    const wrap = document.createElement("div");
+    wrap.className = `message ${role}`;
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+    if (extra) bubble.appendChild(extra);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function createQuestionCards() {
+    const tpl = document.getElementById("question-card-template");
+    const container = document.createElement("div");
+    container.className = "cards";
+    Array.from({ length: 4 }).forEach((_, idx) => {
+        const card = tpl.content.firstElementChild.cloneNode(true);
+        card.querySelector("h3").textContent = `题目 ${idx + 1}`;
+        const topic = mockTopics[idx % mockTopics.length];
+        card.querySelector(".topic").textContent = topic;
+        card.querySelector(".difficulty").textContent = ["easy", "medium", "medium", "hard"][idx % 4];
+        card.querySelector(".question-text").value = `第 ${idx + 1} 题：请完成 ${topic} 的练习。`;
+        card.querySelector(".answer-text").value = `参考答案：这是第 ${idx + 1} 题的解析。`;
+        const editBtn = card.querySelector(".toggle-edit");
+        const qText = card.querySelector(".question-text");
+        const aText = card.querySelector(".answer-text");
+        const logEl = card.querySelector(".log");
+        editBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            const editing = qText.disabled;
+            qText.disabled = !editing;
+            aText.disabled = !editing;
+            editBtn.textContent = editing ? "完成" : "编辑";
+        });
+        card.querySelector(".save-btn").addEventListener("click", (e) => {
+            e.preventDefault();
+            logEl.classList.remove("hidden");
+            logEl.textContent = "POST /questions\n写入成功（mock）";
+        });
+        container.appendChild(card);
+    });
+    return container;
+}
+
+function createOverviewCard() {
+    const tpl = document.getElementById("overview-card-template");
+    const card = tpl.content.firstElementChild.cloneNode(true);
+    const head = card.querySelector(".overview-headline");
+    head.innerHTML = `
+        <span class="badge">专题数：${mockOverview.totalTopics}</span>
+        <span class="badge">题目数：${mockOverview.totalQuestions}</span>
+        <span class="badge">数据表：${mockOverview.tables.length}</span>
+    `;
+    const topics = card.querySelector(".overview-topics");
+    mockOverview.topics.forEach(t => {
+        const block = document.createElement("div");
+        block.style.borderTop = "1px solid #e2e8f0";
+        block.style.paddingTop = "10px";
+        const title = document.createElement("strong");
+        title.textContent = `${t.name} · ${t.count} 题`;
+        block.appendChild(title);
+        const row = document.createElement("div");
+        row.style.display = "grid";
+        row.style.gridTemplateColumns = "repeat(auto-fit, minmax(180px, 1fr))";
+        row.style.gap = "8px";
+        Object.entries(t.difficulties).forEach(([level, data]) => {
+            const cell = document.createElement("div");
+            cell.style.background = "#f1f5f9";
+            cell.style.borderRadius = "10px";
+            cell.style.padding = "10px";
+            cell.innerHTML = `<div><strong>${level}</strong> · ${data.count} 题</div><small>例题：${data.sample}</small>`;
+            row.appendChild(cell);
+        });
+        block.appendChild(row);
+        topics.appendChild(block);
+    });
+    return card;
+}
+
+function createClassCard() {
+    const tpl = document.getElementById("class-card-template");
+    const card = tpl.content.firstElementChild.cloneNode(true);
+    const list = card.querySelector(".class-lists");
+    const detail = card.querySelector(".class-detail");
+
+    function renderDetail(cls) {
+        const students = mockStudents[cls.id] || [];
+        detail.innerHTML = `
+            <strong>${cls.name}</strong>（${students.length} 人）
+            <div class="student-chip-group">
+                ${students.length ? students.map(s => `<span class="student-chip">${s.name}</span>`).join("") : "<span>暂无学生</span>"}
+            </div>
+        `;
+    }
+
+    mockClasses.forEach(cls => {
+        const row = document.createElement("div");
+        row.className = "class-row";
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+        row.style.padding = "8px 12px";
+        row.style.border = "1px solid #e2e8f0";
+        row.style.borderRadius = "10px";
+        row.style.marginBottom = "8px";
+        row.innerHTML = `<span>${cls.name}</span><span style="color:#64748b;font-size:12px;">${(mockStudents[cls.id] || []).length} 人</span>`;
+        row.addEventListener("click", () => renderDetail(cls));
+        list.appendChild(row);
+    });
+
+    return card;
+}
+
+function createAssignCard() {
+    const tpl = document.getElementById("assign-card-template");
+    const card = tpl.content.firstElementChild.cloneNode(true);
+    const classSelect = card.querySelector(".class-select");
+    const studentList = card.querySelector(".student-list");
+    const topicSelect = card.querySelector(".topic-select");
+    const logEl = card.querySelector(".log");
+    mockClasses.forEach(cls => {
+        const opt = document.createElement("option");
+        opt.value = cls.id;
+        opt.textContent = cls.name;
+        classSelect.appendChild(opt);
+    });
+    mockTopics.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t;
+        topicSelect.appendChild(opt);
+    });
+    function renderStudents(classId) {
+        studentList.innerHTML = "";
+        (mockStudents[classId] || []).forEach(stu => {
+            const label = document.createElement("label");
+            label.style.display = "block";
+            label.style.fontSize = "13px";
+            label.innerHTML = `<input type="checkbox" value="${stu.id}"> ${stu.name}`;
+            studentList.appendChild(label);
+        });
+    }
+    classSelect.addEventListener("change", e => renderStudents(e.target.value));
+    renderStudents(mockClasses[0].id);
+    card.querySelector(".assign-btn").addEventListener("click", (e) => {
+        e.preventDefault();
+        const students = Array.from(studentList.querySelectorAll("input:checked")).map(i => Number(i.value));
+        if (!students.length) {
+            alert("请至少选一个学生");
+            return;
+        }
+        logEl.classList.remove("hidden");
+        const payload = {
+            student_ids: students,
+            topic: topicSelect.value,
+            difficulty_level: card.querySelector(".difficulty-select").value
+        };
+        logEl.textContent = `POST /assign/one\npayload: ${JSON.stringify(payload, null, 2)}\n✅ 分配成功（mock）`;
+    });
+    return card;
+}
+
+function respond(prompt) {
+    const normalized = prompt.toLowerCase();
+    if (prompt.includes("出") && prompt.includes("题")) {
+        const cards = createQuestionCards();
+        addMessage("assistant", "根据你的指令生成了题目卡片：", cards);
+        return;
+    }
+    if (prompt.includes("题库") || prompt.includes("概览") || prompt.includes("结构")) {
+        const card = createOverviewCard();
+        addMessage("assistant", "这是题库概况：", card);
+        return;
+    }
+    if (prompt.includes("班级") || prompt.includes("学生")) {
+        const card = createClassCard();
+        addMessage("assistant", "当前班级与学生情况如下：", card);
+        return;
+    }
+    if (prompt.includes("分配") || prompt.includes("布置")) {
+        const card = createAssignCard();
+        addMessage("assistant", "请选择班级与学生进行分配：", card);
+        return;
+    }
+    addMessage("assistant", "我可以帮你出题、查看题库、管理班级/学生或分配题目。");
+}
+
+form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const value = input.value.trim();
+    if (!value) return;
+    addMessage("user", value);
+    input.value = "";
+    setTimeout(() => respond(value), 400);
+});
+
+quick.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-prompt]");
+    if (!btn) return;
+    const prompt = btn.dataset.prompt;
+    addMessage("user", prompt);
+    setTimeout(() => respond(prompt), 300);
+});
+
+addMessage("assistant", "你好，我是教学助手。可以给我指令，比如“出 5 道函数题”或“查看班级情况”。");
+</script>
+</body>
+</html>
