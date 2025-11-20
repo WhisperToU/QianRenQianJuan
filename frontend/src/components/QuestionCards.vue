@@ -21,12 +21,28 @@
 
       <div class="meta-grid">
         <div class="field">
-          <input
-            v-if="card.editing"
-            v-model="card.topic"
-            type="text"
-            placeholder="例：函数与图像"
-          />
+          <template v-if="card.editing">
+            <select
+              v-if="topicOptions.length"
+              :value="card.topic_id ?? ''"
+              @change="handleTopicSelection(card, $event)"
+            >
+              <option value="" disabled hidden>请选择专题</option>
+              <option
+                v-for="option in topicOptions"
+                :key="option.id"
+                :value="option.id"
+              >
+                {{ option.name }}
+              </option>
+            </select>
+            <input
+              v-else
+              v-model="card.topic"
+              type="text"
+              placeholder="例：函数与图像"
+            />
+          </template>
           <span v-else class="topic-pill">
             {{ card.topic || '未命名专题' }}
           </span>
@@ -50,7 +66,6 @@
           </span>
         </div>
       </div>
-
       <div class="qa-grid">
         <div class="qa-block">
           <p class="qa-label">题干</p>
@@ -61,6 +76,17 @@
             rows="4"
           ></textarea>
           <p v-else class="qa-text">{{ card.question }}</p>
+          <label v-if="card.editing" class="field image-field">
+            <span>题图链接（可选）</span>
+            <input
+              v-model="card.imageUrl"
+              type="text"
+              placeholder="https://example.com/diagram.png"
+            />
+          </label>
+          <div v-if="card.imageUrl" class="question-image-preview">
+            <img :src="card.imageUrl" alt="题图预览" />
+          </div>
         </div>
         <div class="qa-block">
           <p class="qa-label">答/解析</p>
@@ -93,7 +119,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
   payload: {
@@ -115,6 +141,22 @@ const difficultyLabel = {
 const difficultyOptions = Object.keys(difficultyLabel);
 
 const cards = ref(createCards(props.payload.questions));
+const topicOptions = computed(() => {
+  const raw = props.payload?.topicOptions;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item) return null;
+      if (typeof item === 'string') {
+        return { id: item, name: item };
+      }
+      return {
+        id: item.id ?? item.name ?? '',
+        name: item.name ?? String(item.id ?? '')
+      };
+    })
+    .filter((option) => option && option.name);
+});
 
 function normalizeDifficulty(value) {
   const normalized = String(value || '')
@@ -140,13 +182,16 @@ function createCards(list = []) {
     id: item.question_id ?? null,
     title: item.title ?? `题目 ${idx + 1}`,
     topic: item.topic ?? '',
+    topic_id: item.topic_id ?? item.topicId ?? null,
     difficulty: normalizeDifficulty(item.difficulty ?? item.difficulty_level ?? 'medium'),
     question: item.question ?? '',
     answer: item.answer ?? '',
     type: item.type,
     duration: item.duration,
+    imageUrl: item.question_image ?? item.imageUrl ?? '',
     editing: false,
-    saved: Boolean(item.saved || item.question_id),
+    persisted: item.persisted ?? Boolean(item.question_id),
+    saved: Boolean(item.saved ?? (item.persisted ?? Boolean(item.question_id))),
     saving: false,
     errorMsg: ''
   }));
@@ -162,15 +207,28 @@ function toggleEdit(card) {
   }
 }
 
+function handleTopicSelection(card, event) {
+  const value = event.target.value;
+  const option = topicOptions.value.find((item) => String(item.id) === value);
+  if (option) {
+    card.topic = option.name;
+    card.topic_id = option.id;
+  } else {
+    card.topic_id = null;
+  }
+}
+
 async function saveCard(card) {
   if (!card.editing || card.saving) return;
 
   const payload = {
     title: card.title,
     topic: card.topic,
+    topic_id: card.topic_id,
     difficulty_level: normalizeDifficulty(card.difficulty),
     question_text: card.question,
     answer_text: card.answer,
+    question_image: card.imageUrl,
     type: card.type,
     duration: card.duration
   };
@@ -293,6 +351,24 @@ async function saveCard(card) {
 
 .field select {
   text-transform: capitalize;
+}
+
+.image-field input {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.question-image-preview img {
+  width: 100%;
+  max-height: 180px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  object-fit: cover;
+  margin-top: 6px;
 }
 
 .topic-pill {

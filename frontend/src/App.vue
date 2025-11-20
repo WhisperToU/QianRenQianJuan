@@ -256,7 +256,8 @@ function respond(prompt, intent) {
     const questionCount = resolveQuestionCount(prompt);
     pushMessage('assistant', `根据你的指令生成了${questionCount}道题目草稿：`, {
       type: 'questions',
-      questions: generateMockQuestions(questionCount)
+      questions: generateMockQuestions(questionCount),
+      topicOptions: mockTopics
     });
     touchConversation();
     return;

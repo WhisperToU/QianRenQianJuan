@@ -25,11 +25,12 @@ def assign_one_question():
     results = []
     question_cache = {}
 
-    def fetch_pool(topic, level):
+    def fetch_pool(topic, topic_id, level):
         cursor.execute("""
             SELECT question_id FROM questions
-            WHERE topic=%s AND difficulty_level=%s
-        """, (topic, level))
+            WHERE {} AND difficulty_level=%s
+        """.format("topic_id=%s" if topic_id else "topic=%s"),
+            (topic_id if topic_id else topic, level))
         pool = cursor.fetchall()
         if not pool:
             return []
@@ -37,10 +38,11 @@ def assign_one_question():
 
     for slot in slots:
         topic = slot.get("topic")
+        topic_id = slot.get("topic_id")
         level = slot.get("difficulty_level")
         quantity = slot.get("quantity", 1)
 
-        if not topic or not level:
+        if not (topic or topic_id) or not level:
             cursor.close()
             conn.close()
             return jsonify({"error": "缺少参数"}), 400
@@ -53,9 +55,9 @@ def assign_one_question():
         if quantity < 1:
             quantity = 1
 
-        key = (topic, level)
+        key = (topic_id or topic, level)
         if key not in question_cache:
-            question_cache[key] = fetch_pool(topic, level)
+            question_cache[key] = fetch_pool(topic, topic_id, level)
 
         pool_ids = question_cache[key]
         if not pool_ids:

@@ -5,18 +5,23 @@ from utils.db import get_connection
 
 questions_bp = Blueprint('questions', __name__)
 
+
 @questions_bp.route('', methods=['GET'])
 def list_questions():
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM questions ORDER BY question_id DESC")
-        return jsonify(cursor.fetchall())
+        rows = cursor.fetchall()
+        for row in rows:
+            row['persisted'] = True
+        return jsonify(rows)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
         cursor.close()
         conn.close()
+
 
 @questions_bp.route('', methods=['POST'])
 def add_question():
@@ -31,14 +36,16 @@ def add_question():
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO questions (question_text, topic, difficulty_level, answer_text)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO questions (question_text, topic, topic_id, difficulty_level, answer_text, question_image)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """,
             (
                 question_text,
                 data.get('topic'),
+                data.get('topic_id'),
                 data.get('difficulty_level', 'medium'),
-                data.get('answer_text', '')
+                data.get('answer_text', ''),
+                data.get('question_image')
             )
         )
         conn.commit()
@@ -54,6 +61,7 @@ def add_question():
         if conn:
             conn.close()
 
+
 @questions_bp.route('/<int:question_id>', methods=['PUT'])
 def update_question(question_id):
     data = request.get_json() or {}
@@ -63,16 +71,18 @@ def update_question(question_id):
         cursor = conn.cursor()
         sql = """
         UPDATE questions
-        SET question_text=%s, topic=%s, difficulty_level=%s, answer_text=%s
+        SET question_text=%s, topic=%s, topic_id=%s, difficulty_level=%s, answer_text=%s, question_image=%s
         WHERE question_id=%s
         """
         cursor.execute(
             sql,
             (
-                data.get("question_text"),
-                data.get("topic"),
-                data.get("difficulty_level"),
-                data.get("answer_text"),
+                data.get('question_text'),
+                data.get('topic'),
+                data.get('topic_id'),
+                data.get('difficulty_level'),
+                data.get('answer_text'),
+                data.get('question_image'),
                 question_id
             )
         )
@@ -94,6 +104,7 @@ def update_question(question_id):
         if conn:
             conn.close()
 
+
 @questions_bp.route('/<int:question_id>', methods=['DELETE'])
 def delete_question(question_id):
     try:
@@ -108,7 +119,7 @@ def delete_question(question_id):
         cursor.close()
         conn.close()
 
-# routes/questions.py 添加：
+
 @questions_bp.route("/topics", methods=["GET"])
 def list_topics():
     conn = get_connection()
@@ -119,21 +130,29 @@ def list_topics():
     conn.close()
     return jsonify([r["topic"] for r in rows if r["topic"]])
 
+
 @questions_bp.route("/count", methods=["GET"])
 def count_questions():
     topic = request.args.get("topic")
     difficulty = request.args.get("difficulty_level")
-    if not topic or not difficulty:
-        return jsonify({"error": "缺少 topic 或 difficulty_level 参数"}), 400
+    topic_id = request.args.get("topic_id")
+    if not difficulty or (not topic and not topic_id):
+        return jsonify({"error": "缺少 topic/topic_id 或 difficulty_level 参数"}), 400
 
     conn = cursor = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT COUNT(*) AS total FROM questions WHERE topic=%s AND difficulty_level=%s",
-            (topic, difficulty)
-        )
+        if topic_id:
+            cursor.execute(
+                "SELECT COUNT(*) AS total FROM questions WHERE topic_id=%s AND difficulty_level=%s",
+                (topic_id, difficulty)
+            )
+        else:
+            cursor.execute(
+                "SELECT COUNT(*) AS total FROM questions WHERE topic=%s AND difficulty_level=%s",
+                (topic, difficulty)
+            )
         row = cursor.fetchone()
         total = row[0] if row else 0
         return jsonify({"count": total})

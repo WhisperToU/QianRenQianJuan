@@ -151,8 +151,16 @@ const studentsMap = computed(() => {
   }
   return props.payload?.students ?? {};
 });
+function normalizeTopicList(list = []) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => (typeof item === 'string' ? item : item?.name))
+    .filter(Boolean);
+}
 const topics = computed(() =>
-  backendTopics.value.length ? backendTopics.value : props.payload?.topics ?? []
+  normalizeTopicList(
+    backendTopics.value.length ? backendTopics.value : props.payload?.topics ?? []
+  )
 );
 
 const availableStudents = ref(cloneStudents(studentsMap.value));
