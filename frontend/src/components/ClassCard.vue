@@ -163,7 +163,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 const ADD_CLASS_TAB = '__add_class__';
 
-const emit = defineEmits(['importClass', 'update:modelValue']);
+const emit = defineEmits(['importClass', 'update:modelValue', 'classChange']);
 
 const props = defineProps({
   payload: {
@@ -208,18 +208,28 @@ const isAddMode = computed(() => !props.selectionMode && selectedClass.value ===
 const currentClass = computed(() =>
   isAddMode.value ? null : classList.value.find((c) => c.id === selectedClass.value)
 );
-const currentStudents = computed(() =>
-  isAddMode.value ? [] : getStudents(selectedClass.value)
-);
+const currentStudents = computed(() => {
+  if (isAddMode.value) return [];
+  if (props.selectionMode) {
+    const classId = selectedClass.value;
+    return props.payload?.students?.[classId] || [];
+  }
+  return getStudents(selectedClass.value);
+});
 
 watch(
   () => props.payload.classes,
   (next) => {
-    if (hasSyncedClasses.value || !next || classList.value.length) return;
-    if (next && next.length) {
-      classList.value = cloneClasses(next);
-      nextClassId.value = calcNextClassId(classList.value);
-      selectedClass.value = classList.value[0]?.id ?? selectedClass.value;
+    if (!props.selectionMode || !next) return;
+    classList.value = cloneClasses(next);
+    nextClassId.value = calcNextClassId(classList.value);
+    if (!classList.value.length) {
+      selectedClass.value = null;
+      return;
+    }
+    const alreadySelected = classList.value.some((cls) => cls.id === selectedClass.value);
+    if (!selectedClass.value || !alreadySelected) {
+      selectedClass.value = classList.value[0].id;
     }
   },
   { deep: true, immediate: true }
@@ -228,7 +238,7 @@ watch(
 watch(
   () => props.payload.students,
   (next) => {
-    if (hasSyncedClasses.value || !next || Object.keys(studentState.value).length) return;
+    if (!props.selectionMode || !next) return;
     studentState.value = cloneStudents(next);
     nextStudentId.value = calcNextId(studentState.value);
   },
@@ -242,7 +252,7 @@ watch(selectedClass, (next) => {
   importedStudents.value = [];
   importError.value = '';
   newClassName.value = '';
-  if (!isAddMode.value && next) {
+  if (!isAddMode.value && !props.selectionMode && next) {
     focusAddInput();
     ensureStudentsLoaded(next);
   }
@@ -275,6 +285,7 @@ function getStudents(classId) {
 function selectClass(id) {
   if (selectedClass.value === id) return;
   selectedClass.value = id;
+  emit('classChange', id);
 }
 
 function selectAddClass() {
@@ -468,8 +479,7 @@ async function fetchClassesFromApi() {
 
 async function ensureStudentsLoaded(classId) {
   if (!classId || classId === ADD_CLASS_TAB) return;
-  const existing = studentState.value[classId];
-  if (existing && existing.length) return;
+  if (Object.prototype.hasOwnProperty.call(studentState.value, classId)) return;
   await fetchStudentsForClass(classId);
 }
 
@@ -490,7 +500,9 @@ async function fetchStudentsForClass(classId) {
 }
 
 onMounted(() => {
-  fetchClassesFromApi();
+  if (!props.selectionMode) {
+    fetchClassesFromApi();
+  }
 });
 
 async function extractStudentNames(file) {

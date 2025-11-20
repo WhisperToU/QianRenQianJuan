@@ -12,51 +12,77 @@ assign_bp = Blueprint("assign", __name__)
 # ------------------------------------------------------------
 @assign_bp.route("/one", methods=["POST"])
 def assign_one_question():
-    data = request.get_json()
+    data = request.get_json() or {}
     student_ids = data.get("student_ids", [])
-    topic = data.get("topic")
-    level = data.get("difficulty_level")
+    slots = data.get("slots", [])
 
-    if not student_ids or not topic or not level:
+    if not student_ids or not slots:
         return jsonify({"error": "缺少参数"}), 400
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # 查询题库
-    cursor.execute("""
-        SELECT question_id FROM questions
-        WHERE topic=%s AND difficulty_level=%s
-    """, (topic, level))
-    pool = cursor.fetchall()
-
-    if not pool:
-        return jsonify({"error": "题库没有符合条件的题"}), 400
-
-    pool_ids = [p["question_id"] for p in pool]
-
     results = []
+    question_cache = {}
 
-    for sid in student_ids:
-        qid = random.choice(pool_ids)
-
-        # 它已经有多少题了？
-        cursor.execute(
-            "SELECT COUNT(*) AS c FROM assigned_questions WHERE student_id=%s",
-            (sid,)
-        )
-        pos = cursor.fetchone()["c"] + 1
-
+    def fetch_pool(topic, level):
         cursor.execute("""
-            INSERT INTO assigned_questions (student_id, question_id, position)
-            VALUES (%s, %s, %s)
-        """, (sid, qid, pos))
+            SELECT question_id FROM questions
+            WHERE topic=%s AND difficulty_level=%s
+        """, (topic, level))
+        pool = cursor.fetchall()
+        if not pool:
+            return []
+        return [p["question_id"] for p in pool]
 
-        results.append({
-            "student_id": sid,
-            "question_id": qid,
-            "position": pos
-        })
+    for slot in slots:
+        topic = slot.get("topic")
+        level = slot.get("difficulty_level")
+        quantity = slot.get("quantity", 1)
+
+        if not topic or not level:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "缺少参数"}), 400
+
+        try:
+            quantity = int(quantity)
+        except (TypeError, ValueError):
+            quantity = 1
+
+        if quantity < 1:
+            quantity = 1
+
+        key = (topic, level)
+        if key not in question_cache:
+            question_cache[key] = fetch_pool(topic, level)
+
+        pool_ids = question_cache[key]
+        if not pool_ids:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "题库没有符合条件的题"}), 400
+
+        for sid in student_ids:
+            for _ in range(quantity):
+                qid = random.choice(pool_ids)
+
+                cursor.execute(
+                    "SELECT COUNT(*) AS c FROM assigned_questions WHERE student_id=%s",
+                    (sid,)
+                )
+                pos = cursor.fetchone()["c"] + 1
+
+                cursor.execute("""
+                    INSERT INTO assigned_questions (student_id, question_id, position)
+                    VALUES (%s, %s, %s)
+                """, (sid, qid, pos))
+
+                results.append({
+                    "student_id": sid,
+                    "question_id": qid,
+                    "position": pos
+                })
 
     conn.commit()
     cursor.close()
@@ -64,8 +90,6 @@ def assign_one_question():
 
     return jsonify({"assigned": results})
 
-
-# ------------------------------------------------------------
 # 2）生成所有学生的总 DOCX（你问的第二步代码就在这里）
 # ------------------------------------------------------------
 @assign_bp.route("/final_docx", methods=["GET"])
