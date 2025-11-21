@@ -23,6 +23,8 @@ import QuestionCards from './QuestionCards.vue';
 import OverviewCard from './OverviewCard.vue';
 import ClassCard from './ClassCard.vue';
 import AssignCard from './AssignCard.vue';
+import SourceQuestionCard from './SourceQuestionCard.vue';
+import TopicCard from './TopicCard.vue';
 
 const props = defineProps({
   messages: {
@@ -37,7 +39,9 @@ const componentMap = {
   questions: QuestionCards,
   overview: OverviewCard,
   classes: ClassCard,
-  assign: AssignCard
+  assign: AssignCard,
+  source_question: SourceQuestionCard,
+  topic: TopicCard
 };
 
 watch(

@@ -9,6 +9,7 @@ from routes.assign import assign_bp
 from flask_cors import CORS
 from routes.students import students_bp
 from routes.classes import classes_bp
+from routes.ai import ai_bp
 
 
 app = Flask(__name__)
@@ -20,7 +21,8 @@ app.register_blueprint(printing_bp, url_prefix='/printing')#支持根据题目ID
 app.register_blueprint(correction_bp, url_prefix='/correction')#面向教师铲鲟学生历史答题记录
 app.register_blueprint(assign_bp, url_prefix='/assign')#支持给学生分配试题
 app.register_blueprint(students_bp, url_prefix='/students')#获取数据库中学生信息
-app.register_blueprint(classes_bp, url_prefix='/classes')#获取数据库中班级信息
+app.register_blueprint(classes_bp, url_prefix='/classes') # classes info
+app.register_blueprint(ai_bp, url_prefix='/ai') # local LLM generate endpoint
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

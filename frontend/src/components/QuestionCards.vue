@@ -1,20 +1,21 @@
 <template>
   <section class="question-grid">
     <article
-      v-for="card in cards"
+      v-for="(card, idx) in cards"
       :key="card.uid"
       :class="['question-card', { saved: card.saved }]"
     >
       <header class="card-head">
-        <div>
-          <h4 v-if="!card.editing">{{ card.title }}</h4>
-          <input
-            v-else
-            v-model="card.title"
-            class="title-input"
-            type="text"
-            placeholder="请输入题目名称"
-          />
+        <div class="title-block">
+          <h4>第 {{ idx + 1 }} 题</h4>
+          <template v-if="card.editing">
+            <input
+              v-model="card.title"
+              class="title-input"
+              type="text"
+              placeholder="请输入题目名称（可选）"
+            />
+          </template>
         </div>
         <span v-if="card.saved" class="badge">已入库</span>
       </header>
@@ -66,6 +67,7 @@
           </span>
         </div>
       </div>
+
       <div class="qa-grid">
         <div class="qa-block">
           <p class="qa-label">题干</p>
@@ -89,7 +91,7 @@
           </div>
         </div>
         <div class="qa-block">
-          <p class="qa-label">答/解析</p>
+          <p class="qa-label">答案/解析</p>
           <textarea
             v-if="card.editing"
             v-model="card.answer"
@@ -302,11 +304,24 @@ async function saveCard(card) {
   justify-content: space-between;
   gap: 10px;
 }
+.title-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
 
 .card-head h4 {
   margin: 0;
   font-size: 16px;
   color: #f8fafc;
+}
+
+.subtitle {
+  margin: 2px 0 0;
+  color: #cbd5e1;
+  font-size: 13px;
 }
 
 .title-input {

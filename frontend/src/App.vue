@@ -7,13 +7,13 @@
             class="collapse-toggle"
             type="button"
             @click="toggleSidebar"
-            aria-label="收起菜单"
+            aria-label="收起侧栏"
           >
-            <span class="icon">⟵</span>
-            <span>收起菜单</span>
+            <span class="icon">☰</span>
+            <span>收起侧栏</span>
           </button>
           <button class="new-chat" type="button" @click="startNewConversation">
-            <span>+ 新建会话</span>
+            <span>+ 新会话</span>
           </button>
         </div>
         <div class="conversation-label">会话记录</div>
@@ -49,7 +49,7 @@
           </div>
         </button>
         <button type="button" class="login-btn">
-          {{ isAuthenticated ? '账号设置' : '登录账号' }}
+          {{ isAuthenticated ? '账户设置' : '登录账号' }}
         </button>
       </div>
     </aside>
@@ -65,7 +65,7 @@
       <button
         type="button"
         class="rail-btn rail-new"
-        aria-label="新建会话"
+        aria-label="新会话"
         @click="startNewConversation"
       >
         +
@@ -92,7 +92,7 @@
 
     <main class="chat-surface">
       <header class="surface-header">
-        <h1>深度教学助手</h1>
+        <h1>数学教案助手</h1>
       </header>
 
       <section class="chat-window">
@@ -107,114 +107,108 @@
         <form @submit.prevent="submit">
           <textarea
             v-model="input"
-            placeholder="告诉助手：出题 / 题库概览 / 班级情况 / 分配题目..."
+            placeholder="输入提问，如：出题 / 数据概览 / 班级名单 / 分配作业..."
           ></textarea>
           <button type="submit" :disabled="!input.trim()">发送</button>
         </form>
-        <small>Shift + Enter 换行 · Enter 发送</small>
+        <small>Shift + Enter 换行，Enter 发送</small>
       </div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
-import QuickActions from './components/QuickActions.vue';
-import MessageList from './components/MessageList.vue';
-import {
-  generateMockQuestions,
-  mockOverview,
-  mockClasses,
-  mockStudents,
-  mockTopics
-} from './data/mock.js';
+import { computed, ref } from 'vue'
+import QuickActions from './components/QuickActions.vue'
+import MessageList from './components/MessageList.vue'
+import { generateMockQuestions, mockOverview, mockClasses, mockStudents, mockTopics } from './data/mock.js'
 
-const conversationCache = new Map();
+const conversationCache = new Map()
 
 const guestProfile = {
-  name: '体验访客',
+  name: '访客用户',
   status: '未登录',
   avatarFallback: '访',
   avatarUrl: ''
-};
+}
 
-const currentUser = ref(null);
+const currentUser = ref(null)
 const sidebarProfile = computed(() => {
   if (!currentUser.value) {
-    return { ...guestProfile };
+    return { ...guestProfile }
   }
-  const name = currentUser.value.name ?? '已登录用户';
+  const name = currentUser.value.name ?? '已登录用户'
   return {
     name,
     status: currentUser.value.status ?? '已登录',
-    avatarFallback:
-      currentUser.value.avatarFallback ??
-      (name.trim() ? name.trim().slice(-1) : '用'),
+    avatarFallback: currentUser.value.avatarFallback ?? (name.trim() ? name.trim().slice(-1) : '用'),
     avatarUrl: currentUser.value.avatarUrl ?? ''
-  };
-});
-const isAuthenticated = computed(() => Boolean(currentUser.value));
+  }
+})
+const isAuthenticated = computed(() => Boolean(currentUser.value))
 
 const conversations = ref([
-  { id: 1, title: '深度教学助手', updated: '刚刚' },
-  { id: 2, title: '题库概览演示', updated: '今天' },
-  { id: 3, title: '班级管理试用', updated: '昨天' }
-]);
+  { id: 1, title: '数学教案助手', updated: '刚刚' },
+  { id: 2, title: '数据概览示例', updated: '昨天' },
+  { id: 3, title: '班级分配示例', updated: '本周' }
+])
 
-const selectedConversation = ref(conversations.value[0]?.id ?? null);
-const messages = ref([]);
-const input = ref('');
-const sidebarCollapsed = ref(true);
+const selectedConversation = ref(conversations.value[0]?.id ?? null)
+const messages = ref([])
+const input = ref('')
+const sidebarCollapsed = ref(true)
 const quickActions = [
-  { label: '出题示例', prompt: '请出 5 道函数题', type: 'questions' },
-  { label: '题库概览', prompt: '展示题库结构概览', type: 'overview' },
-  { label: '班级/学生管理', prompt: '列出班级和学生情况', type: 'classes' },
-  { label: '分配题目', prompt: '给三班学生布置作业', type: 'assign' }
-];
+  { label: '出题示例', prompt: '来 5 道数学题', type: 'questions' },
+  { label: '概览', prompt: '展示总体数据', type: 'overview' },
+  { label: '班级/学生', prompt: '列出班级和学生', type: 'classes' },
+  { label: '分配题目', prompt: '生成数学作业分配', type: 'assign' },
+  { label: '母题录入示例', prompt: '填写一条原始母题记录', type: 'source_question' },
+  { label: '专题信息示例', prompt: '填写一个专题/知识点说明', type: 'topic' }
+]
 
-const DEFAULT_QUESTION_COUNT = 4;
-const MAX_QUESTION_COUNT = 20;
+const DEFAULT_QUESTION_COUNT = 4
+const MAX_QUESTION_COUNT = 20
 
-let messageId = 0;
+let messageId = 0
 
 if (selectedConversation.value !== null) {
-  initConversation(selectedConversation.value);
+  initConversation(selectedConversation.value)
 }
 
 function initConversation(id) {
-  messages.value = [];
-  conversationCache.set(id, messages.value);
-  seedGreeting();
+  messages.value = []
+  conversationCache.set(id, messages.value)
+  seedGreeting()
 }
 
 function seedGreeting() {
-  pushMessage('assistant', '你好，我是教学助手，可以像 ChatGPT 一样向我提问。');
+  pushMessage('assistant', '你好，我可以帮你出题、查看库结构、展示班级/学生、专题或母题录入示例。')
 }
 
 function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value;
+  sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
 function startNewConversation() {
-  const id = Date.now();
+  const id = Date.now()
   conversations.value.unshift({
     id,
     title: `新会话 ${conversations.value.length + 1}`,
     updated: '刚刚'
-  });
-  selectConversation(id, { reset: true });
+  })
+  selectConversation(id, { reset: true })
 }
 
 function selectConversation(id, { reset = false } = {}) {
-  if (selectedConversation.value === id && !reset) return;
+  if (selectedConversation.value === id && !reset) return
   if (selectedConversation.value !== null) {
-    conversationCache.set(selectedConversation.value, messages.value);
+    conversationCache.set(selectedConversation.value, messages.value)
   }
-  selectedConversation.value = id;
+  selectedConversation.value = id
   if (!reset && conversationCache.has(id)) {
-    messages.value = conversationCache.get(id);
+    messages.value = conversationCache.get(id)
   } else {
-    initConversation(id);
+    initConversation(id)
   }
 }
 
@@ -227,109 +221,145 @@ function pushMessage(role, text, payload) {
       text,
       payload
     }
-  ];
+  ]
   if (selectedConversation.value !== null) {
-    conversationCache.set(selectedConversation.value, messages.value);
+    conversationCache.set(selectedConversation.value, messages.value)
   }
 }
 
 function submit() {
-  if (!input.value.trim()) return;
-  handlePrompt(input.value.trim());
-  input.value = '';
+  if (!input.value.trim()) return
+  handlePrompt(input.value.trim())
+  input.value = ''
 }
 
 function handleQuickAction(action) {
-  handlePrompt(action.prompt, action.type);
+  handlePrompt(action.prompt, action.type)
 }
 
 function handlePrompt(prompt, intent) {
-  pushMessage('user', prompt);
-  touchConversation();
-  setTimeout(() => respond(prompt, intent), 200);
+  pushMessage('user', prompt)
+  touchConversation()
+  setTimeout(() => respond(prompt, intent), 200)
 }
 
 function respond(prompt, intent) {
-  const normalized = prompt.toLowerCase();
+  const normalized = prompt.toLowerCase()
 
   if (intent === 'questions' || prompt.includes('出题') || prompt.includes('题目')) {
-    const questionCount = resolveQuestionCount(prompt);
-    pushMessage('assistant', `根据你的指令生成了${questionCount}道题目草稿：`, {
+    const questionCount = resolveQuestionCount(prompt)
+    pushMessage('assistant', `根据你的请求，给出 ${questionCount} 道题目：`, {
       type: 'questions',
       questions: generateMockQuestions(questionCount),
       topicOptions: mockTopics
-    });
-    touchConversation();
-    return;
+    })
+    touchConversation()
+    return
   }
 
-  if (intent === 'overview' || prompt.includes('题库') || prompt.includes('概览') || prompt.includes('结构')) {
-    pushMessage('assistant', '当前题库统计如下：', {
+  if (intent === 'overview' || prompt.includes('概览') || prompt.includes('统计') || prompt.includes('结构')) {
+    pushMessage('assistant', '当前库统计如下：', {
       type: 'overview',
       overview: mockOverview
-    });
-    touchConversation();
-    return;
+    })
+    touchConversation()
+    return
   }
 
-  if (
-    intent === 'assign' ||
-    prompt.includes('分配') ||
-    prompt.includes('布置') ||
-    normalized.includes('assign')
-  ) {
-    pushMessage('assistant', '请选择班级与学生，生成分配任务：', {
+  if (intent === 'assign' || prompt.includes('分配') || prompt.includes('作业') || normalized.includes('assign')) {
+    pushMessage('assistant', '请先选择班级和学生，我来生成分配：', {
       type: 'assign',
       classes: mockClasses,
       students: mockStudents,
       topics: mockTopics
-    });
-    touchConversation();
-    return;
+    })
+    touchConversation()
+    return
   }
 
   if (intent === 'classes' || prompt.includes('班级') || prompt.includes('学生')) {
-    pushMessage('assistant', '班级与学生情况如下：', {
+    pushMessage('assistant', '班级和学生如下：', {
       type: 'classes',
       classes: mockClasses,
       students: mockStudents
-    });
-    touchConversation();
-    return;
+    })
+    touchConversation()
+    return
   }
 
-  pushMessage('assistant', '我可以帮你出题、查看题库结构、管理班级学生或分配题目。');
-  touchConversation();
+  if (intent === 'source_question' || prompt.includes('母题') || normalized.includes('source')) {
+    pushMessage(
+      'assistant',
+      '母题录入示例',
+      {
+        type: 'source_question',
+        defaults: {
+          exam_type: 'midterm',
+          exam_year: 2024,
+          exam_region: '江苏',
+          question_no: '12',
+          question_stem: '已知函数 f(x) 图像如下...',
+          answer: '对应解答'
+        }
+      }
+    )
+    touchConversation()
+    return
+  }
+
+  if (intent === 'topic' || prompt.includes('专题') || prompt.includes('知识点') || normalized.includes('topic')) {
+    pushMessage(
+      'assistant',
+      '专题信息',
+      {
+        type: 'topic',
+        defaults: {
+          name: '函数与图像',
+          source_id: 1,
+          author_name: '张老师',
+          student_description: '针对高一学生的函数基础',
+          easy_description: '定义域、值域基础练习',
+          medium_description: '单调性、奇偶性提升题',
+          difficult_description: '导数结合函数性质综合题'
+        }
+      }
+    )
+    touchConversation()
+    return
+  }
+
+  pushMessage('assistant', '我可以帮你出题、查看库结构、展示班级、学生、专题或母题录入示例。')
+  touchConversation()
 }
 
 function touchConversation(label = '刚刚') {
-  const convo = conversations.value.find((c) => c.id === selectedConversation.value);
-  if (convo) convo.updated = label;
+  const convo = conversations.value.find((c) => c.id === selectedConversation.value)
+  if (convo) convo.updated = label
 }
 
 function resolveQuestionCount(promptText) {
-  if (!promptText) return DEFAULT_QUESTION_COUNT;
-  const digitMatch = promptText.match(/(\d+)\s*(?:道|个)?\s*(?:题|题目|题目集|问题)/i);
+  if (!promptText) return DEFAULT_QUESTION_COUNT
+  const digitMatch = promptText.match(/(\d+)\s*(?:题|道)?\s*(?:题|题目|试题|问题)/i)
   if (digitMatch) {
-    return clampQuestionCount(parseInt(digitMatch[1], 10));
+    return clampQuestionCount(parseInt(digitMatch[1], 10))
   }
-  const chineseMatch = promptText.match(/([零一二两三四五六七八九十]+)\s*(?:道|个)?\s*(?:题|题目|问题)/);
+  const chineseMatch = promptText.match(/([零一二两三四五六七八九十]+)\s*(?:题|道)?\s*(?:题|题目|试题)/)
   if (chineseMatch) {
-    const parsed = chineseNumeralToNumber(chineseMatch[1]);
+    const parsed = chineseNumeralToNumber(chineseMatch[1])
     if (!Number.isNaN(parsed)) {
-      return clampQuestionCount(parsed);
+      return clampQuestionCount(parsed)
     }
   }
-  return DEFAULT_QUESTION_COUNT;
+  return DEFAULT_QUESTION_COUNT
 }
 
 function clampQuestionCount(value) {
-  if (!Number.isFinite(value)) return DEFAULT_QUESTION_COUNT;
-  return Math.max(1, Math.min(MAX_QUESTION_COUNT, Math.round(value)));
+  if (!Number.isFinite(value)) return DEFAULT_QUESTION_COUNT
+  return Math.max(1, Math.min(MAX_QUESTION_COUNT, Math.round(value)))
 }
 
 function chineseNumeralToNumber(content) {
-  if (!content) return NaN;
+  if (!content) return NaN
   const map = {
     零: 0,
     一: 1,
@@ -341,27 +371,26 @@ function chineseNumeralToNumber(content) {
     六: 6,
     七: 7,
     八: 8,
-    九: 9
-  };
-  let total = 0;
-  let current = 0;
+    九: 9,
+    十: 10
+  }
+  let total = 0
+  let current = 0
   for (const char of content) {
     if (char === '十') {
-      current = current === 0 ? 1 : current;
-      total += current * 10;
-      current = 0;
-      continue;
+      current = current === 0 ? 1 : current
+      total += current * 10
+      current = 0
+      continue
     }
-    const digit = map[char];
-    if (digit === undefined) {
-      return NaN;
+    if (!(char in map)) {
+      return NaN
     }
-    current = digit;
+    current = map[char]
   }
-  return total + current;
+  return total + current
 }
 </script>
-
 <style scoped>
 .chat-shell {
   min-height: 100vh;
@@ -788,3 +817,4 @@ function chineseNumeralToNumber(content) {
   }
 }
 </style>
+
