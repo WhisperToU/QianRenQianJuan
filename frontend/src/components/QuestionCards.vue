@@ -7,15 +7,7 @@
     >
       <header class="card-head">
         <div class="title-block">
-          <h4>第 {{ idx + 1 }} 题</h4>
-          <template v-if="card.editing">
-            <input
-              v-model="card.title"
-              class="title-input"
-              type="text"
-              placeholder="请输入题目名称（可选）"
-            />
-          </template>
+          <h4>题目 {{ idx + 1 }}</h4>
         </div>
         <span v-if="card.saved" class="badge">已入库</span>
       </header>
@@ -109,7 +101,7 @@
         <button
           type="button"
           class="primary-btn"
-          :disabled="!card.editing || card.saving"
+          :disabled="card.saving"
           @click="saveCard(card)"
         >
           {{ card.saving ? '保存中...' : '保存' }}
@@ -121,67 +113,64 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue'
+import { apiFetch } from '../utils/api'
 
 const props = defineProps({
   payload: {
     type: Object,
     required: true
   }
-});
+})
 
-const emit = defineEmits(['save']);
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const emit = defineEmits(['save'])
 
 const difficultyLabel = {
   easy: 'easy',
   medium: 'medium',
   difficult: 'difficult'
-};
+}
 
-const difficultyOptions = Object.keys(difficultyLabel);
+const difficultyOptions = Object.keys(difficultyLabel)
 
-const cards = ref(createCards(props.payload.questions));
+const cards = ref(createCards(props.payload.questions))
 const topicOptions = computed(() => {
-  const raw = props.payload?.topicOptions;
-  if (!Array.isArray(raw)) return [];
+  const raw = props.payload?.topicOptions
+  if (!Array.isArray(raw)) return []
   return raw
     .map((item) => {
-      if (!item) return null;
+      if (!item) return null
       if (typeof item === 'string') {
-        return { id: item, name: item };
+        return { id: item, name: item }
       }
       return {
         id: item.id ?? item.name ?? '',
         name: item.name ?? String(item.id ?? '')
-      };
+      }
     })
-    .filter((option) => option && option.name);
-});
+    .filter((option) => option && option.name)
+})
 
 function normalizeDifficulty(value) {
-  const normalized = String(value || '')
-    .toLowerCase()
-    .trim();
-  if (normalized === 'easy') return 'easy';
-  if (normalized === 'medium') return 'medium';
-  if (normalized === 'hard' || normalized === 'difficult') return 'difficult';
-  return 'medium';
+  const normalized = String(value || '').toLowerCase().trim()
+  if (normalized === 'easy') return 'easy'
+  if (normalized === 'medium') return 'medium'
+  if (normalized === 'hard' || normalized === 'difficult') return 'difficult'
+  return 'medium'
 }
 
 watch(
   () => props.payload.questions,
   (next) => {
-    cards.value = createCards(next);
+    cards.value = createCards(next)
   },
   { deep: true }
-);
+)
 
 function createCards(list = []) {
   return (list || []).map((item, idx) => ({
     uid: item.uid ?? item.id ?? item.question_id ?? `temp-${idx + 1}`,
-    id: item.question_id ?? null,
+    id: (item.persisted ?? !!(item.question_id ?? item.id)) ? (item.question_id ?? item.id ?? null) : null,
     title: item.title ?? `题目 ${idx + 1}`,
     topic: item.topic ?? '',
     topic_id: item.topic_id ?? item.topicId ?? null,
@@ -192,36 +181,34 @@ function createCards(list = []) {
     duration: item.duration,
     imageUrl: item.question_image ?? item.imageUrl ?? '',
     editing: false,
-    persisted: item.persisted ?? Boolean(item.question_id),
-    saved: Boolean(item.saved ?? (item.persisted ?? Boolean(item.question_id))),
+    persisted: Boolean(item.persisted ?? !!(item.question_id ?? item.id)),
+    saved: Boolean(item.saved ?? (item.persisted ?? !!(item.question_id ?? item.id))),
     saving: false,
     errorMsg: ''
-  }));
+  }))
 }
 
 function toggleEdit(card) {
-  card.editing = !card.editing;
+  card.editing = !card.editing
   if (card.editing) {
-    card.saved = false;
-    card.errorMsg = '';
-  } else if (card.id) {
-    card.saved = true;
+    // 切换到编辑态时，不改变入库状态，仅清除错误
+    card.errorMsg = ''
   }
 }
 
 function handleTopicSelection(card, event) {
-  const value = event.target.value;
-  const option = topicOptions.value.find((item) => String(item.id) === value);
+  const value = event.target.value
+  const option = topicOptions.value.find((item) => String(item.id) === value)
   if (option) {
-    card.topic = option.name;
-    card.topic_id = option.id;
+    card.topic = option.name
+    card.topic_id = option.id
   } else {
-    card.topic_id = null;
+    card.topic_id = null
   }
 }
 
 async function saveCard(card) {
-  if (!card.editing || card.saving) return;
+  if (card.saving) return
 
   const payload = {
     title: card.title,
@@ -233,42 +220,32 @@ async function saveCard(card) {
     question_image: card.imageUrl,
     type: card.type,
     duration: card.duration
-  };
+  }
 
-  const isUpdate = Boolean(card.id);
-  const url = isUpdate
-    ? `${API_BASE_URL}/questions/${card.id}`
-    : `${API_BASE_URL}/questions`;
+  const isUpdate = Boolean(card.id)
+  const path = isUpdate ? `/questions/${card.id}` : '/questions'
 
-  card.saving = true;
-  card.errorMsg = '';
+  card.saving = true
+  card.errorMsg = ''
 
   try {
-    const response = await fetch(url, {
+    const data = await apiFetch(path, {
       method: isUpdate ? 'PUT' : 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify(payload)
-    });
+    })
 
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || '保存失败，请稍后重试');
-    }
-
-    const persistedId = data.question_id ?? data.id;
+    const persistedId = data.question_id ?? data.id
     if (persistedId) {
-      card.id = persistedId;
+      card.id = persistedId
     }
 
-    card.saved = true;
-    card.editing = false;
-    emit('save', { ...payload, id: card.id });
+    card.saved = true
+    card.editing = false
+    emit('save', { ...payload, id: card.id })
   } catch (error) {
-    card.errorMsg = error?.message || '保存失败，请稍后重试';
+    card.errorMsg = error?.message || '保存失败，请稍后重试'
   } finally {
-    card.saving = false;
+    card.saving = false
   }
 }
 </script>
@@ -479,7 +456,7 @@ async function saveCard(card) {
 }
 
 .card-actions {
-  margin-top: 12px;
+  margin-top: auto;
   display: flex;
   justify-content: flex-end;
   gap: 10px;

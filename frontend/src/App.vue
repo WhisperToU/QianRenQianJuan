@@ -7,13 +7,13 @@
             class="collapse-toggle"
             type="button"
             @click="toggleSidebar"
-            aria-label="收起侧栏"
+            aria-label="折叠侧边栏"
           >
-            <span class="icon">☰</span>
-            <span>收起侧栏</span>
+            <span class="icon">≡</span>
+            <span>折叠侧边栏</span>
           </button>
           <button class="new-chat" type="button" @click="startNewConversation">
-            <span>+ 新会话</span>
+            <span>+ 新对话</span>
           </button>
         </div>
         <div class="conversation-label">会话记录</div>
@@ -41,15 +41,15 @@
               :src="sidebarProfile.avatarUrl"
               :alt="sidebarProfile.name"
             />
-            <span v-else>{{ sidebarProfile.avatarFallback || '访' }}</span>
+            <span v-else>{{ sidebarProfile.avatarFallback || '客' }}</span>
           </div>
           <div>
             <strong>{{ sidebarProfile.name }}</strong>
             <small>{{ sidebarProfile.status }}</small>
           </div>
         </button>
-        <button type="button" class="login-btn">
-          {{ isAuthenticated ? '账户设置' : '登录账号' }}
+        <button type="button" class="login-btn" @click="handleAuthButtonClick">
+          {{ isAuthenticated ? '退出登录' : '登录账号' }}
         </button>
       </div>
     </aside>
@@ -60,12 +60,12 @@
         aria-label="展开菜单"
         @click="toggleSidebar"
       >
-        ☰
+        ≡
       </button>
       <button
         type="button"
         class="rail-btn rail-new"
-        aria-label="新会话"
+        aria-label="新对话"
         @click="startNewConversation"
       >
         +
@@ -74,7 +74,8 @@
         type="button"
         class="rail-avatar"
         :title="sidebarProfile.name"
-        :aria-label="isAuthenticated ? `${sidebarProfile.name}的头像` : '访客头像'"
+        :aria-label="isAuthenticated ? `${sidebarProfile.name}的头像` : '游客头像'"
+        @click="toggleSidebar"
       >
         <div
           class="avatar"
@@ -85,14 +86,14 @@
             :src="sidebarProfile.avatarUrl"
             :alt="sidebarProfile.name"
           />
-          <span v-else>{{ sidebarProfile.avatarFallback || '访' }}</span>
+          <span v-else>{{ sidebarProfile.avatarFallback || '客' }}</span>
         </div>
       </button>
     </div>
 
     <main class="chat-surface">
       <header class="surface-header">
-        <h1>数学教案助手</h1>
+        <h1>数学教辅助手</h1>
       </header>
 
       <section class="chat-window">
@@ -107,12 +108,22 @@
         <form @submit.prevent="submit">
           <textarea
             v-model="input"
-            placeholder="输入提问，如：出题 / 数据概览 / 班级名单 / 分配作业..."
+            placeholder="请输入：题目生成 / 数据概览 / 班级名单 / 布置作业..."
           ></textarea>
           <button type="submit" :disabled="!input.trim()">发送</button>
         </form>
         <small>Shift + Enter 换行，Enter 发送</small>
       </div>
+
+      <AuthModal
+        v-if="showAuth"
+        :mode="authMode"
+        :loading="authLoading"
+        :error="authError"
+        @mode-change="(m) => (authMode = m)"
+        @close="closeAuth"
+        @submit="handleAuthSubmit"
+      />
     </main>
   </div>
 </template>
@@ -121,18 +132,25 @@
 import { computed, ref } from 'vue'
 import QuickActions from './components/QuickActions.vue'
 import MessageList from './components/MessageList.vue'
+import AuthModal from './components/AuthModal.vue'
 import { generateMockQuestions, mockOverview, mockClasses, mockStudents, mockTopics } from './data/mock.js'
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
 
 const conversationCache = new Map()
 
 const guestProfile = {
-  name: '访客用户',
+  name: '游客用户',
   status: '未登录',
-  avatarFallback: '访',
+  avatarFallback: '客',
   avatarUrl: ''
 }
 
 const currentUser = ref(null)
+const showAuth = ref(false)
+const authMode = ref('login')
+const authLoading = ref(false)
+const authError = ref('')
 const sidebarProfile = computed(() => {
   if (!currentUser.value) {
     return { ...guestProfile }
@@ -141,16 +159,16 @@ const sidebarProfile = computed(() => {
   return {
     name,
     status: currentUser.value.status ?? '已登录',
-    avatarFallback: currentUser.value.avatarFallback ?? (name.trim() ? name.trim().slice(-1) : '用'),
+    avatarFallback: currentUser.value.avatarFallback ?? (name.trim() ? name.trim().slice(-1) : '客'),
     avatarUrl: currentUser.value.avatarUrl ?? ''
   }
 })
 const isAuthenticated = computed(() => Boolean(currentUser.value))
 
 const conversations = ref([
-  { id: 1, title: '数学教案助手', updated: '刚刚' },
+  { id: 1, title: '数学教辅助手', updated: '刚刚' },
   { id: 2, title: '数据概览示例', updated: '昨天' },
-  { id: 3, title: '班级分配示例', updated: '本周' }
+  { id: 3, title: '班级信息示例', updated: '更早' }
 ])
 
 const selectedConversation = ref(conversations.value[0]?.id ?? null)
@@ -158,12 +176,12 @@ const messages = ref([])
 const input = ref('')
 const sidebarCollapsed = ref(true)
 const quickActions = [
-  { label: '出题示例', prompt: '来 5 道数学题', type: 'questions' },
-  { label: '概览', prompt: '展示总体数据', type: 'overview' },
+  { label: '题目示例', prompt: '出 5 道试题', type: 'questions' },
+  { label: '概览', prompt: '展示数据概览', type: 'overview' },
   { label: '班级/学生', prompt: '列出班级和学生', type: 'classes' },
-  { label: '分配题目', prompt: '生成数学作业分配', type: 'assign' },
-  { label: '母题录入示例', prompt: '填写一条原始母题记录', type: 'source_question' },
-  { label: '专题信息示例', prompt: '填写一个专题/知识点说明', type: 'topic' }
+  { label: '分配题目', prompt: '选择班级布置作业', type: 'assign' },
+  { label: '原题录入示例', prompt: '写一条原始题目录入', type: 'source_question' },
+  { label: '专题信息示例', prompt: '写一条专题/知识点说明', type: 'topic' }
 ]
 
 const DEFAULT_QUESTION_COUNT = 4
@@ -182,18 +200,83 @@ function initConversation(id) {
 }
 
 function seedGreeting() {
-  pushMessage('assistant', '你好，我可以帮你出题、查看库结构、展示班级/学生、专题或母题录入示例。')
+  pushMessage('assistant', '你好，我可以帮你出题、查看概览、展示班级/学生、专题或原题录入等。')
 }
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
+function openAuth(mode = 'login') {
+  authMode.value = mode
+  authError.value = ''
+  showAuth.value = true
+}
+
+function handleAuthButtonClick() {
+  if (isAuthenticated.value) {
+    logout()
+    return
+  }
+  openAuth('login')
+}
+
+function closeAuth() {
+  showAuth.value = false
+  authError.value = ''
+}
+
+async function handleAuthSubmit(payload) {
+  const { mode, identifier, password, school_name, group_name } = payload
+  authError.value = ''
+  authLoading.value = true
+  try {
+    const resp = await fetch(`${API_BASE_URL}/auth/${mode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier,
+        password,
+        school_name,
+        group_name
+      })
+    })
+    const data = await resp.json()
+    if (!resp.ok) {
+      throw new Error(data?.error || '请求失败')
+    }
+    if (!data?.user) {
+      throw new Error('未返回用户信息')
+    }
+    if (data.token) {
+      localStorage.setItem('auth_token', data.token)
+    }
+    currentUser.value = {
+      name: data.user.username || identifier || '已登录用户',
+      status: '已登录',
+      ...data.user
+    }
+    showAuth.value = false
+  } catch (error) {
+    authError.value = error?.message || '登录/注册失败'
+  } finally {
+    authLoading.value = false
+  }
+}
+
+function logout() {
+  localStorage.removeItem('auth_token')
+  currentUser.value = null
+  authMode.value = 'login'
+  authError.value = ''
+  showAuth.value = false
+}
+
 function startNewConversation() {
   const id = Date.now()
   conversations.value.unshift({
     id,
-    title: `新会话 ${conversations.value.length + 1}`,
+    title: `新对话 ${conversations.value.length + 1}`,
     updated: '刚刚'
   })
   selectConversation(id, { reset: true })
@@ -246,9 +329,9 @@ function handlePrompt(prompt, intent) {
 function respond(prompt, intent) {
   const normalized = prompt.toLowerCase()
 
-  if (intent === 'questions' || prompt.includes('出题') || prompt.includes('题目')) {
+  if (intent === 'questions' || (!intent && (prompt.includes('题目') || prompt.includes('试题')))) {
     const questionCount = resolveQuestionCount(prompt)
-    pushMessage('assistant', `根据你的请求，给出 ${questionCount} 道题目：`, {
+    pushMessage('assistant', `好的，按照 ${questionCount} 道题目生成：`, {
       type: 'questions',
       questions: generateMockQuestions(questionCount),
       topicOptions: mockTopics
@@ -258,7 +341,7 @@ function respond(prompt, intent) {
   }
 
   if (intent === 'overview' || prompt.includes('概览') || prompt.includes('统计') || prompt.includes('结构')) {
-    pushMessage('assistant', '当前库统计如下：', {
+    pushMessage('assistant', '当前的概览如下：', {
       type: 'overview',
       overview: mockOverview
     })
@@ -267,7 +350,7 @@ function respond(prompt, intent) {
   }
 
   if (intent === 'assign' || prompt.includes('分配') || prompt.includes('作业') || normalized.includes('assign')) {
-    pushMessage('assistant', '请先选择班级和学生，我来生成分配：', {
+    pushMessage('assistant', '请选择班级和学生来分发：', {
       type: 'assign',
       classes: mockClasses,
       students: mockStudents,
@@ -278,7 +361,7 @@ function respond(prompt, intent) {
   }
 
   if (intent === 'classes' || prompt.includes('班级') || prompt.includes('学生')) {
-    pushMessage('assistant', '班级和学生如下：', {
+    pushMessage('assistant', '班级与学生列表：', {
       type: 'classes',
       classes: mockClasses,
       students: mockStudents
@@ -287,19 +370,19 @@ function respond(prompt, intent) {
     return
   }
 
-  if (intent === 'source_question' || prompt.includes('母题') || normalized.includes('source')) {
+  if (intent === 'source_question' || prompt.includes('原题') || normalized.includes('source')) {
     pushMessage(
       'assistant',
-      '母题录入示例',
+      '原题录入示例',
       {
         type: 'source_question',
         defaults: {
           exam_type: 'midterm',
           exam_year: 2024,
-          exam_region: '江苏',
+          exam_region: '广东',
           question_no: '12',
           question_stem: '已知函数 f(x) 图像如下...',
-          answer: '对应解答'
+          answer: '参考解答'
         }
       }
     )
@@ -317,10 +400,10 @@ function respond(prompt, intent) {
           name: '函数与图像',
           source_id: 1,
           author_name: '张老师',
-          student_description: '针对高一学生的函数基础',
-          easy_description: '定义域、值域基础练习',
-          medium_description: '单调性、奇偶性提升题',
-          difficult_description: '导数结合函数性质综合题'
+          student_description: '这一章节主要讲解函数概念',
+          easy_description: '基础函数性质与练习',
+          medium_description: '典型函数变换与综合',
+          difficult_description: '难度较高的综合推理题'
         }
       }
     )
@@ -328,7 +411,7 @@ function respond(prompt, intent) {
     return
   }
 
-  pushMessage('assistant', '我可以帮你出题、查看库结构、展示班级、学生、专题或母题录入示例。')
+  pushMessage('assistant', '我可以帮你出题、查看结构、展示班级和学生，或填写专题/原题等信息。')
   touchConversation()
 }
 
@@ -339,11 +422,11 @@ function touchConversation(label = '刚刚') {
 
 function resolveQuestionCount(promptText) {
   if (!promptText) return DEFAULT_QUESTION_COUNT
-  const digitMatch = promptText.match(/(\d+)\s*(?:题|道)?\s*(?:题|题目|试题|问题)/i)
+  const digitMatch = promptText.match(/(\d+)\s*(?:道|个)?\s*(?:题|题目|试题|问题)/i)
   if (digitMatch) {
     return clampQuestionCount(parseInt(digitMatch[1], 10))
   }
-  const chineseMatch = promptText.match(/([零一二两三四五六七八九十]+)\s*(?:题|道)?\s*(?:题|题目|试题)/)
+  const chineseMatch = promptText.match(/([零一二两三四五六七八九十]+)\s*(?:道|个)?\s*(?:题|题目|试题)/)
   if (chineseMatch) {
     const parsed = chineseNumeralToNumber(chineseMatch[1])
     if (!Number.isNaN(parsed)) {
@@ -361,18 +444,18 @@ function clampQuestionCount(value) {
 function chineseNumeralToNumber(content) {
   if (!content) return NaN
   const map = {
-    零: 0,
-    一: 1,
-    二: 2,
-    两: 2,
-    三: 3,
-    四: 4,
-    五: 5,
-    六: 6,
-    七: 7,
-    八: 8,
-    九: 9,
-    十: 10
+    '零': 0,
+    '一': 1,
+    '二': 2,
+    '两': 2,
+    '三': 3,
+    '四': 4,
+    '五': 5,
+    '六': 6,
+    '七': 7,
+    '八': 8,
+    '九': 9,
+    '十': 10
   }
   let total = 0
   let current = 0
@@ -610,6 +693,10 @@ function chineseNumeralToNumber(content) {
   cursor: pointer;
 }
 
+.login-btn:hover {
+  opacity: 0.95;
+}
+
 .chat-surface {
   flex: 1;
   display: flex;
@@ -817,4 +904,3 @@ function chineseNumeralToNumber(content) {
   }
 }
 </style>
-

@@ -1,6 +1,6 @@
 <template>
   <section class="class-card">
-    <div class="class-tabs" role="tablist">
+    <div class="class-tabs" role="tablist" v-if="authed">
       <button
         v-for="cls in classList"
         :key="cls.id"
@@ -11,17 +11,21 @@
         {{ cls.name }}
       </button>
       <button
+        v-if="!selectionMode"
         type="button"
         class="tab-btn add-class-tab"
         :class="{ active: isAddMode }"
         @click="selectAddClass"
-        v-if="!selectionMode"
       >
-        ＋
+        +
       </button>
     </div>
 
     <section class="tab-panel">
+      <template v-if="!authed">
+        <div class="empty-state">请登录后查看或导入班级与学生</div>
+      </template>
+      <template v-else>
       <template v-if="selectionMode">
         <template v-if="currentClass">
           <header class="roster-head selection-head">
@@ -50,14 +54,15 @@
           </div>
         </template>
         <div v-else class="empty-state">
-          请选择上方某个班级以查看学生名单。
+          请选择上方某个班级以查看学生名单
         </div>
       </template>
+
       <template v-else-if="isAddMode">
         <div class="import-panel">
           <h4>添加新班级</h4>
           <p class="import-hint">
-            请下载班级信息模板，填充后导入 Excel。字段可包含多列，但<strong>姓名</strong>列为必填。
+            请下载班级信息模板，填充后导入 Excel。字段可包含多列，但<strong>姓名</strong>列为必填项。
           </p>
           <div class="import-form">
             <div class="form-field">
@@ -102,6 +107,7 @@
           <p class="import-note">导入完成后，新班级会自动生成并出现在选项卡列表中。</p>
         </div>
       </template>
+
       <template v-else>
         <template v-if="currentClass">
           <header class="roster-head">
@@ -123,7 +129,7 @@
                 class="icon-btn remove-btn"
                 @click.stop="removeStudent(stu.id)"
               >
-                ✖
+                ×
               </button>
             </article>
             <article class="student-card add-card">
@@ -142,7 +148,7 @@
                 class="icon-btn add-btn"
                 @click.stop="handleAddButtonClick"
               >
-                ✚
+                +
               </button>
             </article>
           </div>
@@ -154,16 +160,18 @@
           请选择上方某个班级以查看学生名单
         </div>
       </template>
+      </template>
     </section>
   </section>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue'
+import { apiFetch } from '../utils/api'
 
-const ADD_CLASS_TAB = '__add_class__';
+const ADD_CLASS_TAB = '__add_class__'
 
-const emit = defineEmits(['importClass', 'update:modelValue', 'classChange']);
+const emit = defineEmits(['importClass', 'update:modelValue', 'classChange'])
 
 const props = defineProps({
   payload: {
@@ -178,402 +186,449 @@ const props = defineProps({
     type: Array,
     default: () => []
   }
-});
+})
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
 
-const classList = ref([]);
-const selectedClass = ref(null);
-const studentState = ref({});
-const newStudentName = ref('');
-const newStudentInput = ref(null);
-const excelFileName = ref('');
-const importedStudents = ref([]);
-const actionMessage = ref('');
-const nextStudentId = ref(calcNextId(studentState.value));
-const nextClassId = ref(calcNextClassId(classList.value));
-const newClassName = ref('');
-const importError = ref('');
-const selectedStudentIds = ref(new Set(props.modelValue || []));
-const hasSyncedClasses = ref(false);
+const classList = ref([])
+const selectedClass = ref(null)
+const studentState = ref({})
+const newStudentName = ref('')
+const newStudentInput = ref(null)
+const excelFileName = ref('')
+const importedStudents = ref([])
+const actionMessage = ref('')
+const nextStudentId = ref(calcNextId(studentState.value))
+const nextClassId = ref(calcNextClassId(classList.value))
+const newClassName = ref('')
+const importError = ref('')
+const selectedStudentIds = ref(new Set(props.modelValue || []))
+const hasSyncedClasses = ref(false)
+const canConfirmImport = computed(() => Boolean(newClassName.value.trim()) && importedStudents.value.length > 0)
+const storedToken = ref(localStorage.getItem('auth_token') || '')
+const hasToken = () => Boolean(storedToken.value)
+const authed = computed(() => hasToken())
+const clearLocalState = () => {
+  classList.value = []
+  studentState.value = {}
+  selectedClass.value = null
+  newClassName.value = ''
+  importedStudents.value = []
+  excelFileName.value = ''
+  actionMessage.value = ''
+}
 
-const selectedCount = computed(() => selectedStudentIds.value.size);
-const totalStudents = computed(() =>
-  Object.values(studentState.value).reduce((sum, list) => sum + list.length, 0)
-);
+// 同步 localStorage 中 token 的变动（登录/退出）
+function syncToken() {
+  storedToken.value = localStorage.getItem('auth_token') || ''
+  if (!storedToken.value) {
+    clearLocalState()
+  }
+}
+window.addEventListener('storage', syncToken)
+
+const selectedCount = computed(() => selectedStudentIds.value.size)
+const totalStudents = computed(() => Object.values(studentState.value).reduce((sum, list) => sum + list.length, 0))
 const averageStudents = computed(() =>
   classList.value.length ? Math.round(totalStudents.value / classList.value.length) : 0
-);
-const isAddMode = computed(() => !props.selectionMode && selectedClass.value === ADD_CLASS_TAB);
+)
+const isAddMode = computed(() => !props.selectionMode && selectedClass.value === ADD_CLASS_TAB)
 const currentClass = computed(() =>
   isAddMode.value ? null : classList.value.find((c) => c.id === selectedClass.value)
-);
+)
 const currentStudents = computed(() => {
-  if (isAddMode.value) return [];
+  if (isAddMode.value) return []
   if (props.selectionMode) {
-    const classId = selectedClass.value;
-    return props.payload?.students?.[classId] || [];
+    const classId = selectedClass.value
+    return props.payload?.students?.[classId] || []
   }
-  return getStudents(selectedClass.value);
-});
+  return getStudents(selectedClass.value)
+})
 
 watch(
   () => props.payload.classes,
   (next) => {
-    if (!props.selectionMode || !next) return;
-    classList.value = cloneClasses(next);
-    nextClassId.value = calcNextClassId(classList.value);
-    if (!classList.value.length) {
-      selectedClass.value = null;
-      return;
+    if (!hasToken()) {
+      clearLocalState()
+      return
     }
-    const alreadySelected = classList.value.some((cls) => cls.id === selectedClass.value);
+    if (!props.selectionMode || !next) return
+    classList.value = cloneClasses(next)
+    nextClassId.value = calcNextClassId(classList.value)
+    if (!classList.value.length) {
+      selectedClass.value = null
+      return
+    }
+    const alreadySelected = classList.value.some((cls) => cls.id === selectedClass.value)
     if (!selectedClass.value || !alreadySelected) {
-      selectedClass.value = classList.value[0].id;
+      selectedClass.value = classList.value[0].id
     }
   },
   { deep: true, immediate: true }
-);
+)
 
 watch(
   () => props.payload.students,
   (next) => {
-    if (!props.selectionMode || !next) return;
-    studentState.value = cloneStudents(next);
-    nextStudentId.value = calcNextId(studentState.value);
+    if (!hasToken()) {
+      clearLocalState()
+      return
+    }
+    if (!props.selectionMode || !next) return
+    studentState.value = cloneStudents(next)
+    nextStudentId.value = calcNextId(studentState.value)
   },
   { deep: true, immediate: true }
-);
+)
 
 watch(selectedClass, (next) => {
-  newStudentName.value = '';
-  actionMessage.value = '';
-  excelFileName.value = '';
-  importedStudents.value = [];
-  importError.value = '';
-  newClassName.value = '';
+  newStudentName.value = ''
+  actionMessage.value = ''
+  excelFileName.value = ''
+  importedStudents.value = []
+  importError.value = ''
+  newClassName.value = ''
   if (!isAddMode.value && !props.selectionMode && next) {
-    focusAddInput();
-    ensureStudentsLoaded(next);
+    focusAddInput()
+    ensureStudentsLoaded(next)
   }
-});
+})
 
 watch(
   () => props.modelValue,
   (next) => {
-    selectedStudentIds.value = new Set(next || []);
+    selectedStudentIds.value = new Set(next || [])
   },
   { deep: true }
-);
+)
 
 watch(
   classList,
   (next) => {
-    if (!next.length) return;
+    if (!next.length) return
     if (!selectedClass.value) {
-      selectedClass.value = next[0].id;
+      selectedClass.value = next[0].id
     }
   },
   { immediate: true }
-);
+)
 
 function getStudents(classId) {
-  if (!classId) return [];
-  return studentState.value[classId] || [];
+  if (!classId) return []
+  return studentState.value[classId] || []
 }
 
 function selectClass(id) {
-  if (selectedClass.value === id) return;
-  selectedClass.value = id;
-  emit('classChange', id);
+  if (!authed.value) return
+  if (selectedClass.value === id) return
+  selectedClass.value = id
+  emit('classChange', id)
 }
 
 function selectAddClass() {
-  selectedClass.value = ADD_CLASS_TAB;
+  if (!authed.value) return
+  selectedClass.value = ADD_CLASS_TAB
 }
 
 function isStudentSelected(id) {
-  return selectedStudentIds.value.has(id);
+  return selectedStudentIds.value.has(id)
 }
 
 function toggleSelection(id) {
-  if (!props.selectionMode) return;
-  const next = new Set(selectedStudentIds.value);
+  if (!props.selectionMode) return
+  const next = new Set(selectedStudentIds.value)
   if (next.has(id)) {
-    next.delete(id);
+    next.delete(id)
   } else {
-    next.add(id);
+    next.add(id)
   }
-  selectedStudentIds.value = next;
-  emit('update:modelValue', Array.from(next));
+  selectedStudentIds.value = next
+  emit('update:modelValue', Array.from(next))
 }
 
 function focusAddInput() {
   if (newStudentInput.value) {
-    newStudentInput.value.focus();
+    newStudentInput.value.focus()
   }
 }
 
 function handleAddButtonClick() {
   if (newStudentName.value.trim()) {
-    addStudent();
-    return;
+    addStudent()
+    return
   }
-  focusAddInput();
+  focusAddInput()
 }
 
 function addStudent() {
-  if (!currentClass.value) return;
-  const name = newStudentName.value.trim();
+  if (!currentClass.value) return
+  const name = newStudentName.value.trim()
   if (!name) {
-    actionMessage.value = '请输入学生姓名';
-    return;
+    actionMessage.value = '请输入学生姓名'
+    return
   }
-  const classId = selectedClass.value;
-  const updated = { ...studentState.value };
-  const list = updated[classId] ? [...updated[classId]] : [];
-  const entry = { id: nextStudentId.value++, name };
-  list.push(entry);
-  updated[classId] = list;
-  studentState.value = updated;
-  newStudentName.value = '';
-  actionMessage.value = `已添加 ${entry.name}`;
-  focusAddInput();
+  const classId = selectedClass.value
+  const updated = { ...studentState.value }
+  const list = updated[classId] ? [...updated[classId]] : []
+  const entry = { id: nextStudentId.value++, name }
+  list.push(entry)
+  updated[classId] = list
+  studentState.value = updated
+  newStudentName.value = ''
+  actionMessage.value = `已添加 ${entry.name}`
+  focusAddInput()
 }
 
 async function handleExcelUpload(event) {
-  const [file] = event.target.files || [];
-  importedStudents.value = [];
-  importError.value = '';
+  const [file] = event.target.files || []
+  importedStudents.value = []
+  importError.value = ''
   if (!file) {
-    excelFileName.value = '';
-    return;
+    excelFileName.value = ''
+    return
   }
-  excelFileName.value = file.name;
+  excelFileName.value = file.name
   try {
-    const names = await extractStudentNames(file);
-    importedStudents.value = names;
+    const names = await extractStudentNames(file)
+    importedStudents.value = names
     if (!names.length) {
-      importError.value = '未解析到任何学生姓名';
+      importError.value = '未解析到任何学生姓名'
     } else {
-      importError.value = '';
-      actionMessage.value = `已识别 ${names.length} 名学生`;
+      importError.value = ''
+      actionMessage.value = `已识别 ${names.length} 名学生`
     }
   } catch (err) {
-    importError.value = err.message || '解析文件失败';
-    importedStudents.value = [];
+    importError.value = err.message || '解析文件失败'
+    importedStudents.value = []
   }
 }
 
 function removeStudent(studentId) {
-  if (!selectedClass.value) return;
-  const classId = selectedClass.value;
-  const list = studentState.value[classId] || [];
-  const removed = list.find((stu) => stu.id === studentId);
-  const updated = { ...studentState.value, [classId]: list.filter((stu) => stu.id !== studentId) };
-  studentState.value = updated;
-  actionMessage.value = removed ? `已删掉 ${removed.name}` : '已删除学生';
+  if (!selectedClass.value) return
+  const classId = selectedClass.value
+  const list = studentState.value[classId] || []
+  const removed = list.find((stu) => stu.id === studentId)
+  const updated = { ...studentState.value, [classId]: list.filter((stu) => stu.id !== studentId) }
+  studentState.value = updated
+  actionMessage.value = removed ? `已删除 ${removed.name}` : '已删除学生'
 }
 
-function confirmImport() {
-  importError.value = '';
-  const className = newClassName.value.trim();
+async function confirmImport() {
+  importError.value = ''
+  const className = newClassName.value.trim()
   if (!className) {
-    importError.value = '请输入班级名称';
-    return;
+    importError.value = '请输入班级名称'
+    return
   }
   if (!importedStudents.value.length) {
-    importError.value = '请先上传包含姓名列的表格';
-    return;
+    importError.value = '请先上传包含姓名列的表格'
+    return
   }
-  const classId = nextClassId.value++;
-  const classEntry = { id: classId, name: className };
-  classList.value = [...classList.value, classEntry];
+  try {
+    const classResp = await apiFetch('/classes/add', {
+      method: 'POST',
+      body: JSON.stringify({ class_name: className })
+    })
+    const classId = classResp.class_id
+    const classEntry = { id: classId, name: className }
+    classList.value = [...classList.value, classEntry]
 
-  const students = importedStudents.value.map((name) => ({
-    id: nextStudentId.value++,
-    name
-  }));
-  studentState.value = { ...studentState.value, [classId]: students };
+    const studentsPayload = importedStudents.value.map((name) => ({ name }))
+    const stuResp = await apiFetch('/students/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ class_id: classId, students: studentsPayload })
+    })
+    const students = (stuResp.students || []).map((s) => ({ id: s.id, name: s.name }))
+    studentState.value = { ...studentState.value, [classId]: students }
+    nextStudentId.value = calcNextId(studentState.value)
 
-  emit('importClass', {
-    classId,
-    className,
-    fileName: excelFileName.value,
-    students
-  });
+    emit('importClass', {
+      classId,
+      className,
+      fileName: excelFileName.value,
+      students
+    })
 
-  newClassName.value = '';
-  importedStudents.value = [];
-  excelFileName.value = '';
-  actionMessage.value = `已导入 ${students.length} 名学生`;
-  selectedClass.value = classId;
+    newClassName.value = ''
+    importedStudents.value = []
+    excelFileName.value = ''
+    actionMessage.value = `已导入 ${students.length} 名学生`
+    selectedClass.value = classId
+  } catch (error) {
+    importError.value = error?.message || '导入失败'
+  }
 }
 
 function progress(classId) {
-  const count = getStudents(classId).length;
-  if (!totalStudents.value) return 0;
-  return Math.round((count / totalStudents.value) * 100);
+  const count = getStudents(classId).length
+  if (!totalStudents.value) return 0
+  return Math.round((count / totalStudents.value) * 100)
 }
 
 function cloneStudents(data = {}) {
-  const copy = {};
+  const copy = {}
   Object.entries(data || {}).forEach(([classId, list]) => {
-    copy[classId] = list.map((stu) => ({ ...stu }));
-  });
-  return copy;
+    copy[classId] = list.map((stu) => ({ ...stu }))
+  })
+  return copy
 }
 
 function cloneClasses(list = []) {
-  return (list || []).map((cls) => normalizeClass(cls));
+  return (list || []).map((cls) => normalizeClass(cls))
 }
 
 function calcNextId(map = {}) {
-  let maxId = 0;
+  let maxId = 0
   Object.values(map || {}).forEach((list) => {
     list.forEach((stu) => {
-      if (stu.id > maxId) maxId = stu.id;
-    });
-  });
-  return maxId + 1;
+      if (stu.id > maxId) maxId = stu.id
+    })
+  })
+  return maxId + 1
 }
 
 function calcNextClassId(list = []) {
-  return (list || []).reduce((max, cls) => (cls.id > max ? cls.id : max), 0) + 1;
+  return (list || []).reduce((max, cls) => (cls.id > max ? cls.id : max), 0) + 1
 }
 
 function normalizeClass(entry = {}) {
   return {
     id: entry.id ?? entry.class_id ?? entry.classId,
     name: entry.name ?? entry.class_name ?? entry.className ?? '未命名班级'
-  };
+  }
 }
 
 function normalizeStudent(entry = {}) {
   return {
     id: entry.id ?? entry.student_id ?? entry.studentId,
     name: entry.name ?? entry.student_name ?? entry.studentName ?? ''
-  };
+  }
 }
 
 async function fetchClassesFromApi() {
   try {
-    const response = await fetch(`${API_BASE_URL}/classes/list`);
-    const data = await response.json().catch(() => []);
-    if (!response.ok) {
-      throw new Error(data.error || '获取班级信息失败');
+    syncToken()
+    if (!authed.value) {
+      importError.value = '请先登录后再导入班级/学生'
+      clearLocalState()
+      return
     }
-    const normalized = (data || []).map((item) => normalizeClass(item));
+    const data = await apiFetch('/classes/list', { method: 'GET' })
+    const normalized = (data || []).map((item) => normalizeClass(item))
     if (normalized.length) {
-      hasSyncedClasses.value = true;
-      classList.value = normalized;
-      nextClassId.value = calcNextClassId(classList.value);
-      studentState.value = {};
-      selectedClass.value = normalized[0].id;
-      ensureStudentsLoaded(selectedClass.value);
+      hasSyncedClasses.value = true
+      classList.value = normalized
+      nextClassId.value = calcNextClassId(classList.value)
+      studentState.value = {}
+      selectedClass.value = normalized[0].id
+      ensureStudentsLoaded(selectedClass.value)
     }
   } catch (error) {
-    console.warn('班级数据同步失败', error);
+    console.warn('班级数据同步失败', error)
   }
 }
 
 async function ensureStudentsLoaded(classId) {
-  if (!classId || classId === ADD_CLASS_TAB) return;
-  if (Object.prototype.hasOwnProperty.call(studentState.value, classId)) return;
-  await fetchStudentsForClass(classId);
+  if (!classId || classId === ADD_CLASS_TAB) return
+  if (!authed.value) return
+  if (Object.prototype.hasOwnProperty.call(studentState.value, classId)) return
+  await fetchStudentsForClass(classId)
 }
 
 async function fetchStudentsForClass(classId) {
-  if (!classId) return;
+  if (!classId) return
   try {
-    const response = await fetch(`${API_BASE_URL}/students/by_class?class_id=${classId}`);
-    const data = await response.json().catch(() => []);
-    if (!response.ok) {
-      throw new Error(data.error || '获取学生信息失败');
+    syncToken()
+    if (!authed.value) {
+      importError.value = '请先登录后再导入班级/学生'
+      studentState.value = {}
+      return
     }
-    const normalized = (data || []).map((item) => normalizeStudent(item));
-    studentState.value = { ...studentState.value, [classId]: normalized };
-    nextStudentId.value = calcNextId(studentState.value);
+    const data = await apiFetch(`/students/by_class?class_id=${classId}`, { method: 'GET' })
+    const normalized = (data || []).map((item) => normalizeStudent(item))
+    studentState.value = { ...studentState.value, [classId]: normalized }
+    nextStudentId.value = calcNextId(studentState.value)
   } catch (error) {
-    console.warn('学生数据同步失败', error);
+    console.warn('学生数据同步失败', error)
   }
 }
 
 onMounted(() => {
-  if (!props.selectionMode) {
-    fetchClassesFromApi();
+  syncToken()
+  if (!props.selectionMode && authed.value) {
+    fetchClassesFromApi()
   }
-});
+})
 
 async function extractStudentNames(file) {
-  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const ext = (file.name.split('.').pop() || '').toLowerCase()
   if (['xlsx', 'xls', 'xlsm', 'xlsb'].includes(ext)) {
-    return parseExcelFile(file);
+    return parseExcelFile(file)
   }
-  const text = await file.text();
-  return parseStudentNamesFromText(text);
+  const text = await file.text()
+  return parseStudentNamesFromText(text)
 }
 
 async function parseExcelFile(file) {
-  const XLSX = await loadXlsxModule();
-  const data = await file.arrayBuffer();
-  const workbook = XLSX.read(data, { type: 'array' });
+  const XLSX = await loadXlsxModule()
+  const data = await file.arrayBuffer()
+  const workbook = XLSX.read(data, { type: 'array' })
   if (!workbook.SheetNames.length) {
-    throw new Error('Excel 文件为空');
+    throw new Error('Excel 文件为空')
   }
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-  return parseRowsForNames(rows);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+  return parseRowsForNames(rows)
 }
 
 function parseStudentNamesFromText(text = '') {
-  const rawRows = (text || '').split(/\r?\n/).map((row) => row.trim());
-  const filtered = rawRows.filter(Boolean);
-  if (!filtered.length) return [];
-  const delimiter = detectDelimiter(filtered[0]);
-  const rows = filtered.map((row) => splitRow(row, delimiter));
-  return parseRowsForNames(rows);
+  const rawRows = (text || '').split(/\r?\n/).map((row) => row.trim())
+  const filtered = rawRows.filter(Boolean)
+  if (!filtered.length) return []
+  const delimiter = detectDelimiter(filtered[0])
+  const rows = filtered.map((row) => splitRow(row, delimiter))
+  return parseRowsForNames(rows)
 }
+
 function parseRowsForNames(rows = []) {
   const headerRowIndex = rows.findIndex((cols) =>
     cols.some((cell) => /姓名|name/i.test(String(cell || '').trim()))
-  );
+  )
   if (headerRowIndex === -1) {
-    throw new Error('模板缺少“姓名”列');
+    throw new Error('模板缺少“姓名”列')
   }
-  const headerRow = rows[headerRowIndex];
-  const nameIndex = headerRow.findIndex((cell) => /姓名|name/i.test(String(cell || '').trim()));
+  const headerRow = rows[headerRowIndex]
+  const nameIndex = headerRow.findIndex((cell) => /姓名|name/i.test(String(cell || '').trim()))
   if (nameIndex === -1) {
-    throw new Error('模板缺少“姓名”列');
+    throw new Error('模板缺少“姓名”列')
   }
-  const names = [];
+  const names = []
   for (let i = headerRowIndex + 1; i < rows.length; i += 1) {
-    const name = String(rows[i][nameIndex] || '').trim();
-    if (name) names.push(name);
+    const name = String(rows[i][nameIndex] || '').trim()
+    if (name) names.push(name)
   }
-  return names;
+  return names
 }
 
 function detectDelimiter(row) {
-  if (row.includes('	')) return '	';
-  if (row.includes(';')) return ';';
-  if (row.includes('|')) return '|';
-  return ',';
+  if (row.includes('	')) return '	'
+  if (row.includes(';')) return ';'
+  if (row.includes('|')) return '|'
+  return ','
 }
 
 function splitRow(row, delimiter) {
-  return row.split(delimiter).map((cell) => cell.trim());
+  return row.split(delimiter).map((cell) => cell.trim())
 }
 
-let xlsxLoader;
+let xlsxLoader
 function loadXlsxModule() {
   if (!xlsxLoader) {
-    xlsxLoader = import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm');
+    xlsxLoader = import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm')
   }
-  return xlsxLoader;
+  return xlsxLoader
 }
 </script>
-
 
 <style scoped>
 .class-card {

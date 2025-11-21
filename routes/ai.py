@@ -1,10 +1,12 @@
 ﻿from flask import Blueprint, request, jsonify
 from utils.llm_client import chat
+from utils.auth import auth_required
 
 ai_bp = Blueprint('ai', __name__)
 
 
 @ai_bp.route('/generate', methods=['POST'])
+@auth_required
 def generate():
     body = request.get_json() or {}
     prompt = body.get('prompt')

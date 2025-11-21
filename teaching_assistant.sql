@@ -1,5 +1,5 @@
 ﻿# Host: localhost  (Version: 5.7.26)
-# Date: 2025-11-20 16:16:08
+# Date: 2025-11-21 23:06:25
 # Generator: MySQL-Front 5.3  (Build 4.234)
 
 /*!40101 SET NAMES utf8 */;
@@ -16,9 +16,12 @@ CREATE TABLE `assigned_questions` (
   `position` int(11) NOT NULL,
   `session_id` int(11) DEFAULT NULL,
   `assigned_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `user_id` int(11) DEFAULT NULL,
+  `school_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `student_id` (`student_id`),
-  KEY `question_id` (`question_id`)
+  KEY `question_id` (`question_id`),
+  KEY `school_id` (`school_id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 #
@@ -26,6 +29,7 @@ CREATE TABLE `assigned_questions` (
 #
 
 /*!40000 ALTER TABLE `assigned_questions` DISABLE KEYS */;
+INSERT INTO `assigned_questions` VALUES (1,104,3,1,NULL,'2025-11-21 13:37:12',NULL,NULL);
 /*!40000 ALTER TABLE `assigned_questions` ENABLE KEYS */;
 
 #
@@ -36,7 +40,10 @@ DROP TABLE IF EXISTS `classes`;
 CREATE TABLE `classes` (
   `class_id` int(11) NOT NULL AUTO_INCREMENT,
   `class_name` varchar(50) COLLATE utf8_unicode_ci DEFAULT NULL,
-  PRIMARY KEY (`class_id`)
+  `user_id` int(11) DEFAULT NULL,
+  `school_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`class_id`),
+  KEY `school_id` (`school_id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 #
@@ -44,8 +51,52 @@ CREATE TABLE `classes` (
 #
 
 /*!40000 ALTER TABLE `classes` DISABLE KEYS */;
-INSERT INTO `classes` VALUES (2,'2班'),(4,'4班'),(5,'5班');
+INSERT INTO `classes` VALUES (2,'2班',NULL,NULL),(4,'4班',NULL,NULL),(5,'5班',NULL,NULL);
 /*!40000 ALTER TABLE `classes` ENABLE KEYS */;
+
+#
+# Structure for table "conversations"
+#
+
+DROP TABLE IF EXISTS `conversations`;
+CREATE TABLE `conversations` (
+  `conversation_id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `title` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `school_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`conversation_id`),
+  KEY `school_id` (`school_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+#
+# Data for table "conversations"
+#
+
+/*!40000 ALTER TABLE `conversations` DISABLE KEYS */;
+/*!40000 ALTER TABLE `conversations` ENABLE KEYS */;
+
+#
+# Structure for table "messages"
+#
+
+DROP TABLE IF EXISTS `messages`;
+CREATE TABLE `messages` (
+  `message_id` int(11) NOT NULL AUTO_INCREMENT,
+  `conversation_id` int(11) NOT NULL,
+  `sender` enum('user','ai') NOT NULL,
+  `content` longtext,
+  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`message_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+#
+# Data for table "messages"
+#
+
+/*!40000 ALTER TABLE `messages` DISABLE KEYS */;
+/*!40000 ALTER TABLE `messages` ENABLE KEYS */;
 
 #
 # Structure for table "questions"
@@ -61,6 +112,7 @@ CREATE TABLE `questions` (
   `question_image` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
   `answer_text` text COLLATE utf8_unicode_ci,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `group_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`question_id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=10 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
@@ -69,8 +121,24 @@ CREATE TABLE `questions` (
 #
 
 /*!40000 ALTER TABLE `questions` DISABLE KEYS */;
-INSERT INTO `questions` VALUES (1,'easy','回声定位',NULL,'测试1',NULL,'测试1','2025-11-14 20:48:33'),(2,'easy','基础代数',NULL,'已知 2x + 3 = 9，求 x',NULL,'x = 3','2025-11-19 21:21:20'),(3,'medium','函数与图像',NULL,'已知 2x + 3 = 11，求 x',NULL,'x = 4','2025-11-19 21:24:48'),(4,'medium','分数四则运算',NULL,'第 1 题：请完成 分数四则运算 的练习。',NULL,'参考答案：这是第 1 题的解析。','2025-11-19 22:42:43'),(5,'medium','函数与图像',NULL,'第 2 题：请完成 函数与图像 的练习。',NULL,'参考答案：这是第 2 题的解析。','2025-11-19 22:43:53'),(6,'medium','几何思维',NULL,'第 3 题：请完成 几何思维 的练习。',NULL,'参考答案：这是第 3 题的解析。','2025-11-19 22:43:59'),(7,'difficult','概率初步',NULL,'第 4 题：请完成 概率初步 的练习。',NULL,'参考答案：这是第 4 题的解析。','2025-11-19 22:45:52'),(8,'easy','概率初步',NULL,'第 4 题：请完成 概率初步 的练习。',NULL,'参考答案：这是第 4 题的解析。','2025-11-19 22:47:20'),(9,'difficult','概率初步',NULL,'第 4 题：请完成 概率初步 的练习。',NULL,'参考答案：这是第 4 题的解析。','2025-11-19 22:55:41');
+INSERT INTO `questions` VALUES (1,'easy','函数与图像',101,'已知函数 f(x) = 2x^2 - 4x + 3，判断其在区间 [-1, 3] 上的单调性，并说明理由。','https://via.placeholder.com/360x180?text=函数图像','函数为开口向上的抛物线，顶点在 x=1，区间 [-1,3] 包含顶点，需分区间分析。','2025-11-21 21:27:55',NULL),(2,'easy','函数与图像',101,'已知函数 f(x) = 2x^2 - 4x + 3，判断其在区间 [-1, 3] 上的单调性，并说明理由。','https://via.placeholder.com/360x180?text=函数图像','函数为开口向上的抛物线，顶点在 x=1，区间 [-1,3] 包含顶点，需分区间分析。','2025-11-21 22:13:43',NULL);
 /*!40000 ALTER TABLE `questions` ENABLE KEYS */;
+
+#
+# Structure for table "schools"
+#
+
+DROP TABLE IF EXISTS `schools`;
+CREATE TABLE `schools` (
+  `school_id` int(11) NOT NULL AUTO_INCREMENT,
+  `school_name` varchar(200) NOT NULL,
+  PRIMARY KEY (`school_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+#
+# Data for table "schools"
+#
+
 
 #
 # Structure for table "source_questions"
@@ -86,7 +154,10 @@ CREATE TABLE `source_questions` (
   `question_stem` text NOT NULL,
   `answer` text,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  `group_id` int(11) DEFAULT NULL,
+  `school_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `school_id` (`school_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
 #
@@ -105,17 +176,41 @@ CREATE TABLE `students` (
   `student_id` int(11) NOT NULL AUTO_INCREMENT,
   `class_id` int(11) DEFAULT NULL,
   `student_name` varchar(50) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `school_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`student_id`),
-  KEY `class_id` (`class_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=108 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+  KEY `class_id` (`class_id`),
+  KEY `school_id` (`school_id`)
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 #
 # Data for table "students"
 #
 
 /*!40000 ALTER TABLE `students` DISABLE KEYS */;
-INSERT INTO `students` VALUES (1,2,'高子骞'),(2,2,'胡御涛'),(3,2,'张铃'),(4,2,'罗宇涵'),(5,2,'陈昱衡'),(6,2,'李彦诚'),(7,2,'黄子毅'),(8,2,'赵伊诺'),(9,2,'吕承涵'),(10,2,'代昊龙'),(11,2,'陈伟辰'),(12,2,'夏昱澄'),(13,2,'杨浩宇'),(14,2,'罗皓然'),(15,2,'卞祖昊'),(16,2,'杨欣怡'),(17,2,'余梓涵'),(18,2,'向怡霏'),(19,2,'靳元雨'),(20,2,'任浩扬'),(21,2,'彭思涵'),(22,2,'郑瑜浩'),(23,2,'朱玉喆'),(24,2,'刘嘉芃'),(25,2,'李洲洋'),(26,2,'舒智飞'),(27,2,'王彦泽'),(28,2,'李馥吟'),(29,2,'赵泽浩'),(30,2,'刘天昊'),(31,2,'张瑾然'),(32,2,'胡暄源'),(33,2,'汪子皓'),(34,2,'周雨龙'),(35,2,'方彬翰'),(36,2,'杨思淇'),(37,2,'王思雅'),(38,2,'余晨萱'),(39,2,'汪书涵'),(40,2,'陈儒鑫'),(41,2,'李丽欣'),(42,2,'王一伊'),(43,2,'杨涵麟'),(44,5,'张峰瑞'),(45,5,'徐浩然'),(46,5,'赵禄浩'),(47,5,'魏皓轩'),(48,5,'陈嘉浩'),(49,5,'贾俊伟'),(50,5,'刘晋鹏'),(51,5,'王家毅'),(52,5,'铎浩轩'),(53,5,'代雨冉'),(54,5,'李雅雯'),(55,5,'王小文'),(56,5,'陈筱蕊'),(57,5,'程钰淇'),(58,5,'卫婼兮'),(59,5,'李与冉'),(60,5,'刘丽泽'),(61,5,'彭婷娜'),(62,5,'曹玉松'),(63,5,'熊浩棋'),(64,5,'曾鑫'),(65,5,'徐嘉诚'),(66,5,'赵俊懿'),(67,5,'涂汯熠'),(68,5,'贺隆毅'),(69,5,'牟天佑'),(70,5,'田婧希'),(71,5,'杨双忆'),(72,5,'王莉皎'),(73,5,'蔡瑞涵'),(74,5,'熊紫荷'),(75,5,'赵子涵'),(76,5,'姜星宇'),(77,5,'陈雨涵'),(78,5,'张熙坪'),(79,5,'山子涵'),(80,5,'杨雪峰'),(81,4,'袁民东'),(82,4,'邓嘉淇'),(83,4,'廖晋逸'),(84,4,'陈义卓'),(85,4,'严浩宇'),(86,4,'王子涛'),(87,4,'曾垒'),(88,4,'卫诗琪'),(89,4,'成栖鈅'),(90,4,'李婕煜'),(91,4,'李依瑞洋'),(92,4,'陈欣愉'),(93,4,'寇子曰'),(94,4,'高以达'),(95,4,'魏中俊'),(96,4,'卢宇杰'),(97,4,'钟琪鸿'),(98,4,'王浩洋'),(99,4,'周泽宇'),(100,4,'沈鑫'),(101,4,'侯云浩'),(102,4,'张汇旻'),(103,4,'李瑜薇'),(104,4,'黄诗睿'),(105,4,'殷晨曦'),(106,4,'刘邦鸿'),(107,4,'张钰玥');
+INSERT INTO `students` VALUES (1,2,'王敬晨',2,NULL);
 /*!40000 ALTER TABLE `students` ENABLE KEYS */;
+
+#
+# Structure for table "subject_groups"
+#
+
+DROP TABLE IF EXISTS `subject_groups`;
+CREATE TABLE `subject_groups` (
+  `group_id` int(11) NOT NULL AUTO_INCREMENT,
+  `group_name` varchar(100) NOT NULL,
+  `school_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`group_id`),
+  KEY `school_id` (`school_id`)
+) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8;
+
+#
+# Data for table "subject_groups"
+#
+
+/*!40000 ALTER TABLE `subject_groups` DISABLE KEYS */;
+INSERT INTO `subject_groups` VALUES (1,'物理组',NULL),(2,'化学组',NULL),(3,'生物组',NULL);
+/*!40000 ALTER TABLE `subject_groups` ENABLE KEYS */;
 
 #
 # Structure for table "topics"
@@ -132,7 +227,10 @@ CREATE TABLE `topics` (
   `medium_description` text,
   `difficult_description` text,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  `group_id` int(11) DEFAULT NULL,
+  `school_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `school_id` (`school_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
 #
@@ -150,17 +248,21 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `username` varchar(50) COLLATE utf8_unicode_ci NOT NULL,
-  `password` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
-  `role` enum('admin','teacher','assistant') COLLATE utf8_unicode_ci DEFAULT 'teacher',
+  `password_hash` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `is_new_user` tinyint(1) NOT NULL DEFAULT '1',
+  `group_id` int(11) DEFAULT NULL,
+  `role` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `school_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `username` (`username`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+  UNIQUE KEY `username` (`username`),
+  KEY `school_id` (`school_id`)
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 #
 # Data for table "users"
 #
 
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'王敬晨','888888','teacher','2025-05-19 04:03:52');
+INSERT INTO `users` VALUES (2,'王敬晨','scrypt:32768:8:1$lQZSAH0cxWx3SAgq$d4b14467ad5ddaa8434700126202502aa911fcb612f81e06bcef50c855b830fbfa80123b003ee5ea003d15e85fc73b6e03e5c0533b55ea66440441d6458c748b','2025-11-21 20:07:28',0,NULL,'teacher',NULL);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;

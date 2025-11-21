@@ -1,7 +1,7 @@
-<template>
+﻿<template>
   <div class="card">
     <header>
-      <h3>母题录入</h3>
+      <h3>原题录入</h3>
     </header>
     <form @submit.prevent>
       <div class="section">
@@ -50,16 +50,16 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue';
+import { reactive } from 'vue'
 
 const props = defineProps({
   payload: {
     type: Object,
     required: true
   }
-});
+})
 
-const defaults = props.payload?.defaults || {};
+const defaults = props.payload?.defaults || {}
 const examTypes = [
   { label: '月考', value: 'monthly' },
   { label: '期中', value: 'midterm' },
@@ -67,7 +67,7 @@ const examTypes = [
   { label: '高考', value: 'gaokao' },
   { label: '模拟', value: 'mock' },
   { label: '其他', value: 'other' }
-];
+]
 
 const form = reactive({
   exam_type: defaults.exam_type || '',
@@ -76,15 +76,15 @@ const form = reactive({
   question_no: defaults.question_no || '',
   question_stem: defaults.question_stem || '',
   answer: defaults.answer || ''
-});
+})
 
 function reset() {
-  form.exam_type = defaults.exam_type || '';
-  form.exam_year = defaults.exam_year || '';
-  form.exam_region = defaults.exam_region || '';
-  form.question_no = defaults.question_no || '';
-  form.question_stem = defaults.question_stem || '';
-  form.answer = defaults.answer || '';
+  form.exam_type = defaults.exam_type || ''
+  form.exam_year = defaults.exam_year || ''
+  form.exam_region = defaults.exam_region || ''
+  form.question_no = defaults.question_no || ''
+  form.question_stem = defaults.question_stem || ''
+  form.answer = defaults.answer || ''
 }
 </script>
 
