@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="chat-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <aside v-if="!sidebarCollapsed" class="sidebar">
       <div class="sidebar-top">
@@ -7,50 +7,57 @@
             class="collapse-toggle"
             type="button"
             @click="toggleSidebar"
-            aria-label="折叠侧边栏"
+            aria-label="关闭侧边栏"
           >
-            <span class="icon">≡</span>
-            <span>折叠侧边栏</span>
+            <span class="icon">✖</span>
           </button>
-          <button class="new-chat" type="button" @click="startNewConversation">
-            <span>+ 新对话</span>
+          <button class="new-chat" type="button" @click="startNewConversation" aria-label="新对话">
+            <span>+</span>
           </button>
         </div>
         <div class="conversation-label">会话记录</div>
         <div class="conversation-list">
-          <button
+          <div
             v-for="conversation in conversations"
             :key="conversation.id"
-            type="button"
-            :class="['conversation-item', { active: conversation.id === selectedConversation }]"
-            @click="selectConversation(conversation.id)"
+            class="conversation-item"
+            :class="{ active: conversation.id === selectedConversation }"
           >
-            <span>{{ conversation.title }}</span>
-            <small>{{ conversation.updated }}</small>
-          </button>
+            <button
+              class="conversation-delete"
+              type="button"
+              title="删除会话"
+              @click.stop="removeConversation(conversation.id)"
+            >
+              ✖
+            </button>
+            <button
+              class="conversation-link"
+              type="button"
+              @click="selectConversation(conversation.id)"
+            >
+              <span>{{ conversation.title }}</span>
+              <small>{{ conversation.updated }}</small>
+            </button>
+          </div>
         </div>
       </div>
       <div class="sidebar-bottom">
-        <button type="button" class="user-card" :aria-label="sidebarProfile.name">
-          <div
-            class="avatar"
-            :class="{ 'avatar-image': !!sidebarProfile.avatarUrl, 'avatar-guest': !sidebarProfile.avatarUrl }"
-          >
-            <img
-              v-if="sidebarProfile.avatarUrl"
-              :src="sidebarProfile.avatarUrl"
-              :alt="sidebarProfile.name"
-            />
-            <span v-else>{{ sidebarProfile.avatarFallback || '客' }}</span>
+        <template v-if="isAuthenticated">
+          <div class="account-row">
+            <div class="avatar-chip">
+              <span>{{ sidebarProfile.avatarFallback || (sidebarProfile.name?.slice(-1) ?? '？') }}</span>
+            </div>
+            <button type="button" class="logout-btn" @click="handleAuthButtonClick">
+              退出登录
+            </button>
           </div>
-          <div>
-            <strong>{{ sidebarProfile.name }}</strong>
-            <small>{{ sidebarProfile.status }}</small>
-          </div>
-        </button>
-        <button type="button" class="login-btn" @click="handleAuthButtonClick">
-          {{ isAuthenticated ? '退出登录' : '登录账号' }}
-        </button>
+        </template>
+        <template v-else>
+          <button type="button" class="login-btn" @click="handleAuthButtonClick">
+            登录账号
+          </button>
+        </template>
       </div>
     </aside>
     <div v-else class="sidebar-rail">
@@ -60,7 +67,7 @@
         aria-label="展开菜单"
         @click="toggleSidebar"
       >
-        ≡
+        ☰
       </button>
       <button
         type="button"
@@ -74,7 +81,7 @@
         type="button"
         class="rail-avatar"
         :title="sidebarProfile.name"
-        :aria-label="isAuthenticated ? `${sidebarProfile.name}的头像` : '游客头像'"
+        :aria-label="isAuthenticated ? `${sidebarProfile.name} 的头像` : '游客头像'"
         @click="toggleSidebar"
       >
         <div
@@ -93,26 +100,29 @@
 
     <main class="chat-surface">
       <header class="surface-header">
-        <h1>数学教辅助手</h1>
+        <h1>教学助手</h1>
       </header>
 
       <section class="chat-window">
         <MessageList :messages="messages" />
       </section>
 
-      <section class="quick-bar">
-        <QuickActions :actions="quickActions" @select="handleQuickAction" />
-      </section>
-
       <div class="composer">
         <form @submit.prevent="submit">
-          <textarea
+          <div class="composer-field">
+<textarea
+            ref="composerRef"
             v-model="input"
-            placeholder="请输入：题目生成 / 数据概览 / 班级名单 / 布置作业..."
+            placeholder="询问任何问题"
+            @keydown="handleComposerKeydown"
+            @input="adjustComposerHeight"
+            rows="1"
           ></textarea>
-          <button type="submit" :disabled="!input.trim()">发送</button>
+            <button type="submit" :disabled="!input.trim() || isThinking" aria-label="发送消息">
+              <span aria-hidden="true">✈</span>
+            </button>
+          </div>
         </form>
-        <small>Shift + Enter 换行，Enter 发送</small>
       </div>
 
       <AuthModal
@@ -129,11 +139,10 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import QuickActions from './components/QuickActions.vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import MessageList from './components/MessageList.vue'
 import AuthModal from './components/AuthModal.vue'
-import { generateMockQuestions, mockOverview, mockClasses, mockStudents, mockTopics } from './data/mock.js'
+import { apiFetch } from './utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
 
@@ -151,6 +160,8 @@ const showAuth = ref(false)
 const authMode = ref('login')
 const authLoading = ref(false)
 const authError = ref('')
+const isThinking = ref(false)
+const composerRef = ref(null)
 const sidebarProfile = computed(() => {
   if (!currentUser.value) {
     return { ...guestProfile }
@@ -165,43 +176,97 @@ const sidebarProfile = computed(() => {
 })
 const isAuthenticated = computed(() => Boolean(currentUser.value))
 
-const conversations = ref([
-  { id: 1, title: '数学教辅助手', updated: '刚刚' },
-  { id: 2, title: '数据概览示例', updated: '昨天' },
-  { id: 3, title: '班级信息示例', updated: '更早' }
-])
-
-const selectedConversation = ref(conversations.value[0]?.id ?? null)
+const conversations = ref([])
+const selectedConversation = ref(null)
 const messages = ref([])
 const input = ref('')
 const sidebarCollapsed = ref(true)
-const quickActions = [
-  { label: '题目示例', prompt: '出 5 道试题', type: 'questions' },
-  { label: '概览', prompt: '展示数据概览', type: 'overview' },
-  { label: '班级/学生', prompt: '列出班级和学生', type: 'classes' },
-  { label: '分配题目', prompt: '选择班级布置作业', type: 'assign' },
-  { label: '原题录入示例', prompt: '写一条原始题目录入', type: 'source_question' },
-  { label: '专题信息示例', prompt: '写一条专题/知识点说明', type: 'topic' }
-]
-
-const DEFAULT_QUESTION_COUNT = 4
-const MAX_QUESTION_COUNT = 20
 
 let messageId = 0
+let greetingTimer = null
 
-if (selectedConversation.value !== null) {
-  initConversation(selectedConversation.value)
+watch(isAuthenticated, (logged, prev) => {
+  if (prev !== undefined && logged !== prev) {
+    scheduleGreeting()
+    if (logged) {
+      sidebarCollapsed.value = true
+    }
+    if (logged) {
+      loadConversations()
+    } else {
+      conversations.value = []
+      selectedConversation.value = null
+    }
+  }
+}, { immediate: true })
+
+loadConversations().catch(() => {})
+
+async function loadConversations() {
+  if (!isAuthenticated.value) {
+    conversations.value = []
+    selectedConversation.value = null
+    return
+  }
+  try {
+    const data = await apiFetch('/conversations/list')
+    conversations.value = (data || []).map((item) => ({
+      id: item.conversation_id,
+      title: item.title,
+      updated: item.updated_at
+    }))
+    if (!selectedConversation.value && conversations.value.length) {
+      selectConversation(conversations.value[0].id, { reset: true })
+    }
+    if (!conversations.value.length) {
+      await startNewConversation()
+    }
+  } catch (error) {
+    console.error('加载会话失败', error)
+    conversations.value = []
+    selectedConversation.value = null
+  }
+}
+
+async function loadMessages(conversationId) {
+  if (!isAuthenticated.value || !conversationId) {
+    return
+  }
+  try {
+    const data = await apiFetch(`/conversations/${conversationId}/messages`)
+    const mapped = (data || []).map((item) => ({
+      id: item.message_id,
+      role: item.sender === 'user' ? 'user' : 'assistant',
+      text: item.content,
+      timestamp: item.timestamp
+    }))
+    messages.value = mapped
+    conversationCache.set(conversationId, mapped)
+  } catch (error) {
+    console.error('加载消息失败', error)
+  }
 }
 
 function initConversation(id) {
   messages.value = []
   conversationCache.set(id, messages.value)
-  seedGreeting()
+  scheduleGreeting()
 }
 
-function seedGreeting() {
-  pushMessage('assistant', '你好，我可以帮你出题、查看概览、展示班级/学生、专题或原题录入等。')
+function scheduleGreeting() {
+  if (greetingTimer) {
+    clearTimeout(greetingTimer)
+  }
+  greetingTimer = setTimeout(() => {
+    const isLogged = isAuthenticated.value
+    const targetText = isLogged
+      ? `${currentUser.value?.name || '老师'}，您好`
+      : '请登录以继续使用教学助手'
+    pushMessage('assistant', targetText)
+    greetingTimer = null
+  }, 800)
 }
+
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -213,9 +278,9 @@ function openAuth(mode = 'login') {
   showAuth.value = true
 }
 
-function handleAuthButtonClick() {
+async function handleAuthButtonClick() {
   if (isAuthenticated.value) {
-    logout()
+    await logout()
     return
   }
   openAuth('login')
@@ -264,15 +329,40 @@ async function handleAuthSubmit(payload) {
   }
 }
 
-function logout() {
+async function logout() {
+  await persistCurrentConversation()
   localStorage.removeItem('auth_token')
   currentUser.value = null
   authMode.value = 'login'
   authError.value = ''
   showAuth.value = false
+  conversations.value = []
+  selectedConversation.value = null
+  messages.value = []
+  conversationCache.clear()
 }
 
-function startNewConversation() {
+async function persistCurrentConversation() {
+  if (!isAuthenticated.value) return
+  const currentId = selectedConversation.value
+  if (!currentId) return
+  const currentConv = conversations.value.find((c) => c.id === currentId)
+  if (!currentConv) return
+  try {
+    await apiFetch(`/conversations/${currentId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title: currentConv.title || '新对话' })
+    })
+  } catch (error) {
+    console.error('保存当前会话失败', error)
+  }
+}
+
+async function startNewConversation() {
+  if (isAuthenticated.value) {
+    await createConversation()
+    return
+  }
   const id = Date.now()
   conversations.value.unshift({
     id,
@@ -281,6 +371,47 @@ function startNewConversation() {
   })
   selectConversation(id, { reset: true })
 }
+async function createConversation() {
+  try {
+    const resp = await apiFetch('/conversations/', {
+      method: 'POST',
+      body: JSON.stringify({ title: '新对话' })
+    })
+    const newConversation = {
+      id: resp.conversation_id,
+      title: resp.title,
+      updated: new Date().toISOString()
+    }
+    conversations.value.unshift(newConversation)
+    selectConversation(newConversation.id, { reset: true })
+  } catch (error) {
+    console.error('新建会话失败', error)
+    startNewConversation()
+  }
+}
+
+async function removeConversation(id) {
+  if (!id) return
+  const idx = conversations.value.findIndex((c) => c.id === id)
+  if (idx === -1) return
+  const wasSelected = selectedConversation.value === id
+  if (isAuthenticated.value) {
+    try {
+      await apiFetch(`/conversations/${id}`, {
+        method: 'DELETE'
+      })
+    } catch (error) {
+      console.error('删除会话失败', error)
+    }
+  }
+  conversations.value.splice(idx, 1)
+  if (!wasSelected) return
+  if (conversations.value.length) {
+    selectConversation(conversations.value[Math.max(0, idx - 1)].id, { reset: true })
+  } else {
+    await startNewConversation()
+  }
+}
 
 function selectConversation(id, { reset = false } = {}) {
   if (selectedConversation.value === id && !reset) return
@@ -288,6 +419,10 @@ function selectConversation(id, { reset = false } = {}) {
     conversationCache.set(selectedConversation.value, messages.value)
   }
   selectedConversation.value = id
+  if (isAuthenticated.value) {
+    loadMessages(id)
+    return
+  }
   if (!reset && conversationCache.has(id)) {
     messages.value = conversationCache.get(id)
   } else {
@@ -296,10 +431,11 @@ function selectConversation(id, { reset = false } = {}) {
 }
 
 function pushMessage(role, text, payload) {
+  const id = ++messageId
   messages.value = [
     ...messages.value,
     {
-      id: ++messageId,
+      id,
       role,
       text,
       payload
@@ -308,111 +444,106 @@ function pushMessage(role, text, payload) {
   if (selectedConversation.value !== null) {
     conversationCache.set(selectedConversation.value, messages.value)
   }
+  return id
+}
+
+function updateMessage(id, partial) {
+  messages.value = messages.value.map((msg) =>
+    msg.id === id ? { ...msg, ...partial } : msg
+  )
 }
 
 function submit() {
   if (!input.value.trim()) return
   handlePrompt(input.value.trim())
   input.value = ''
+  nextTick(() => resetComposerHeight())
 }
 
-function handleQuickAction(action) {
-  handlePrompt(action.prompt, action.type)
+function handleComposerKeydown(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    submit()
+  }
 }
 
-function handlePrompt(prompt, intent) {
+function adjustComposerHeight() {
+  const el = composerRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 20
+  const maxHeight = lineHeight * 5
+  const targetHeight = Math.min(el.scrollHeight, maxHeight)
+  el.style.height = `${targetHeight}px`
+  el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
+}
+
+function resetComposerHeight() {
+  const el = composerRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.overflowY = 'hidden'
+}
+
+async function handlePrompt(prompt) {
   pushMessage('user', prompt)
   touchConversation()
-  setTimeout(() => respond(prompt, intent), 200)
+  sendMessageToBackend('user', prompt)
+  await respond(prompt)
 }
 
-function respond(prompt, intent) {
-  const normalized = prompt.toLowerCase()
+async function respond(prompt) {
+  if (isThinking.value) return
+  isThinking.value = true
+  const placeholderId = pushMessage('assistant', '正在生成回复…', { loading: true })
+  touchConversation('处理中')
+  try {
+    const result = await sendPrompt(prompt)
+    const mode = result?.mode || 'chat'
+    const aiText = extractMessageText(result)
+    if (mode === 'card' && result?.data) {
+      opencard(placeholderId, result.data, aiText)
+      touchConversation('卡片')
+    } else {
+      const outputText = aiText || '(空响应)'
+      updateMessage(placeholderId, {
+        text: outputText,
+        payload: null
+      })
+      touchConversation('刚刚')
+    }
+    sendMessageToBackend('ai', aiText)
+  } catch (error) {
+      updateMessage(placeholderId, {
+        text: `生成时出错：${error?.message || error}`,
+        payload: { error: true }
+      })
+      touchConversation('失败')
+    } finally {
+      isThinking.value = false
+    }
+}
 
-  if (intent === 'questions' || (!intent && (prompt.includes('题目') || prompt.includes('试题')))) {
-    const questionCount = resolveQuestionCount(prompt)
-    pushMessage('assistant', `好的，按照 ${questionCount} 道题目生成：`, {
-      type: 'questions',
-      questions: generateMockQuestions(questionCount),
-      topicOptions: mockTopics
-    })
-    touchConversation()
-    return
+function sendMessageToBackend(role, text) {
+  if (!isAuthenticated.value || !selectedConversation.value || !text) return
+  apiFetch(`/conversations/${selectedConversation.value}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ sender: role, content: text })
+  }).catch((error) => {
+    console.error('保存消息失败', error)
+  })
+}
+
+function extractMessageText(result) {
+  if (!result) return ''
+  if (typeof result === 'string') return result
+  if (result.text) return result.text
+  if (result.data) {
+    if (typeof result.data === 'string') return result.data
+    if (result.data.text) return result.data.text
+    return JSON.stringify(result.data, null, 2)
   }
-
-  if (intent === 'overview' || prompt.includes('概览') || prompt.includes('统计') || prompt.includes('结构')) {
-    pushMessage('assistant', '当前的概览如下：', {
-      type: 'overview',
-      overview: mockOverview
-    })
-    touchConversation()
-    return
-  }
-
-  if (intent === 'assign' || prompt.includes('分配') || prompt.includes('作业') || normalized.includes('assign')) {
-    pushMessage('assistant', '请选择班级和学生来分发：', {
-      type: 'assign',
-      classes: mockClasses,
-      students: mockStudents,
-      topics: mockTopics
-    })
-    touchConversation()
-    return
-  }
-
-  if (intent === 'classes' || prompt.includes('班级') || prompt.includes('学生')) {
-    pushMessage('assistant', '班级与学生列表：', {
-      type: 'classes',
-      classes: mockClasses,
-      students: mockStudents
-    })
-    touchConversation()
-    return
-  }
-
-  if (intent === 'source_question' || prompt.includes('原题') || normalized.includes('source')) {
-    pushMessage(
-      'assistant',
-      '原题录入示例',
-      {
-        type: 'source_question',
-        defaults: {
-          exam_type: 'midterm',
-          exam_year: 2024,
-          exam_region: '广东',
-          question_no: '12',
-          question_stem: '已知函数 f(x) 图像如下...',
-          answer: '参考解答'
-        }
-      }
-    )
-    touchConversation()
-    return
-  }
-
-  if (intent === 'topic' || prompt.includes('专题') || prompt.includes('知识点') || normalized.includes('topic')) {
-    pushMessage(
-      'assistant',
-      '专题信息',
-      {
-        type: 'topic',
-        defaults: {
-          name: '函数与图像',
-          source_id: 1,
-          author_name: '张老师',
-          student_description: '这一章节主要讲解函数概念',
-          easy_description: '基础函数性质与练习',
-          medium_description: '典型函数变换与综合',
-          difficult_description: '难度较高的综合推理题'
-        }
-      }
-    )
-    touchConversation()
-    return
-  }
-
-  pushMessage('assistant', '我可以帮你出题、查看结构、展示班级和学生，或填写专题/原题等信息。')
-  touchConversation()
+  return ''
 }
 
 function touchConversation(label = '刚刚') {
@@ -420,58 +551,44 @@ function touchConversation(label = '刚刚') {
   if (convo) convo.updated = label
 }
 
-function resolveQuestionCount(promptText) {
-  if (!promptText) return DEFAULT_QUESTION_COUNT
-  const digitMatch = promptText.match(/(\d+)\s*(?:道|个)?\s*(?:题|题目|试题|问题)/i)
-  if (digitMatch) {
-    return clampQuestionCount(parseInt(digitMatch[1], 10))
-  }
-  const chineseMatch = promptText.match(/([零一二两三四五六七八九十]+)\s*(?:道|个)?\s*(?:题|题目|试题)/)
-  if (chineseMatch) {
-    const parsed = chineseNumeralToNumber(chineseMatch[1])
-    if (!Number.isNaN(parsed)) {
-      return clampQuestionCount(parsed)
-    }
-  }
-  return DEFAULT_QUESTION_COUNT
+function opencard(messageId, action) {
+  const payload = action?.type
+    ? {
+        type: action.type,
+        ...(action.payload || action.data || {})
+      }
+    : null
+  const displayJson =
+    typeof action === 'string'
+      ? action
+      : action
+        ? JSON.stringify(action, null, 2)
+        : '(来自 AI 的卡片响应)'
+
+  updateMessage(messageId, {
+    text: displayJson,
+    payload
+  })
 }
 
-function clampQuestionCount(value) {
-  if (!Number.isFinite(value)) return DEFAULT_QUESTION_COUNT
-  return Math.max(1, Math.min(MAX_QUESTION_COUNT, Math.round(value)))
-}
-
-function chineseNumeralToNumber(content) {
-  if (!content) return NaN
-  const map = {
-    '零': 0,
-    '一': 1,
-    '二': 2,
-    '两': 2,
-    '三': 3,
-    '四': 4,
-    '五': 5,
-    '六': 6,
-    '七': 7,
-    '八': 8,
-    '九': 9,
-    '十': 10
+async function sendPrompt(prompt) {
+  const payload = JSON.stringify({ prompt })
+  if (isAuthenticated.value) {
+    return apiFetch('/ai/secure/generate', {
+      method: 'POST',
+      body: payload
+    })
   }
-  let total = 0
-  let current = 0
-  for (const char of content) {
-    if (char === '十') {
-      current = current === 0 ? 1 : current
-      total += current * 10
-      current = 0
-      continue
-    }
-    if (!(char in map)) {
-      return NaN
-    }
-    current = map[char]
+  const resp = await fetch(`${API_BASE_URL}/ai/public/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: payload
+  })
+  const data = await resp.json().catch(() => ({}))
+  if (!resp.ok) {
+    throw new Error(data.error || '请求失败')
   }
-  return total + current
+  return { mode: 'chat', text: data.text }
 }
 </script>
 <style scoped>
@@ -516,31 +633,44 @@ function chineseNumeralToNumber(content) {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: relative;
+  padding-top: 12px;
 }
 
 .new-chat {
-  width: 100%;
-  padding: 12px;
-  border-radius: 14px;
+  width: 46px;
+  height: 50px;
+  border-radius: 10px;
   border: 1px dashed rgba(148, 163, 184, 0.5);
   background: rgba(30, 41, 59, 0.7);
   color: #e0e7ff;
-  font-size: 14px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.new-chat:hover {
+  background: rgba(56, 189, 248, 0.2);
 }
 
 .collapse-toggle {
-  width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 14px;
-  padding: 10px 12px;
-  background: rgba(15, 23, 42, 0.6);
+  position: absolute;
+  top: 12px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(15, 23, 42, 1);
   color: #e2e8f0;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  justify-content: center;
+  font-size: 16px;
 }
 
 .collapse-toggle .icon {
@@ -586,13 +716,27 @@ function chineseNumeralToNumber(content) {
   cursor: pointer;
 }
 
-.rail-avatar .avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.7);
-}
+  .rail-avatar .avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(37, 99, 235, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #f8fafc;
+  }
+
+  .rail-avatar .avatar span {
+    display: inline-flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    color: #f8fafc;
+  }
 
 .conversation-label {
   font-size: 12px;
@@ -621,6 +765,45 @@ function chineseNumeralToNumber(content) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  position: relative;
+} 
+
+.conversation-link {
+  width: 100%;
+  background: none;
+  border: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.conversation-item:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.conversation-delete {
+  display: none;
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e0e7ff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.conversation-item:hover .conversation-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .conversation-item small {
@@ -639,49 +822,6 @@ function chineseNumeralToNumber(content) {
   gap: 10px;
 }
 
-.user-card {
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 16px;
-  padding: 10px 12px;
-  background: rgba(15, 23, 42, 0.6);
-  color: inherit;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background: rgba(59, 130, 246, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.avatar span {
-  font-size: 14px;
-}
-
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: inherit;
-}
-
-.avatar.avatar-image {
-  padding: 0;
-  background: rgba(148, 163, 184, 0.15);
-}
-
-.avatar.avatar-guest {
-  color: #e2e8f0;
-}
 
 .login-btn {
   border: none;
@@ -697,6 +837,50 @@ function chineseNumeralToNumber(content) {
   opacity: 0.95;
 }
 
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.avatar-chip {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+}
+
+.avatar-chip span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #fff;
+  font-size: 16px;
+}
+
+.logout-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e7ff;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 0 0 48%;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .chat-surface {
   flex: 1;
   display: flex;
@@ -710,7 +894,6 @@ function chineseNumeralToNumber(content) {
 
 .surface-header,
 .chat-window,
-.quick-bar,
 .composer {
   background: rgba(32, 33, 35, 0.96);
   border-left: 1px solid rgba(255, 255, 255, 0.05);
@@ -728,34 +911,6 @@ function chineseNumeralToNumber(content) {
 .surface-header h1 {
   margin: 0;
   font-size: clamp(22px, 3vw, 30px);
-}
-
-.quick-bar {
-  padding: 10px 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: none;
-}
-
-.quick-bar :deep(.quick-actions) {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
-}
-
-.quick-bar :deep(button) {
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(15, 23, 42, 0.45);
-  color: #e0e7ff;
-  padding: 12px 14px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: border-color 0.2s ease, transform 0.2s ease;
-}
-
-.quick-bar :deep(button:hover) {
-  border-color: rgba(248, 250, 252, 0.5);
-  transform: translateY(-1px);
 }
 
 .chat-window {
@@ -831,34 +986,40 @@ function chineseNumeralToNumber(content) {
 
 .composer {
   padding: 12px 18px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   position: sticky;
   bottom: 0;
   z-index: 2;
   flex-shrink: 0;
+  background: rgba(32, 33, 35, 0.96);
 }
 
 .composer form {
   display: flex;
-  gap: 8px;
-  align-items: center;
+}
+
+.composer-field {
+  position: relative;
+  width: 100%;
 }
 
 .composer textarea {
-  flex: 1;
+  width: 100%;
+  min-height: 38px;
+  max-height: calc(1.5rem * 5);
+  height: 38px;
   resize: none;
-  min-height: 70px;
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(3, 7, 18, 0.6);
   color: #f8fafc;
-  padding: 10px 12px;
+  padding: 10px 16px 10px 16px;
+  padding-right: 96px;
   font-size: 15px;
   line-height: 1.5;
   font-family: inherit;
+  overflow-y: hidden;
+  transition: border 0.2s ease;
 }
 
 .composer textarea:focus {
@@ -867,15 +1028,27 @@ function chineseNumeralToNumber(content) {
   box-shadow: 0 0 0 1px rgba(236, 72, 153, 0.15);
 }
 
+.composer textarea::-webkit-scrollbar {
+  height: 6px;
+}
+
+.composer textarea::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+}
+
 .composer button {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
   border: none;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #22d3ee, #a855f7);
-  color: #0f172a;
-  font-weight: 600;
-  padding: 10px 18px;
+  border-radius: 50%;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 16px;
+  padding: 6px 10px;
   cursor: pointer;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s ease;
 }
 
 .composer button:disabled {
@@ -884,12 +1057,7 @@ function chineseNumeralToNumber(content) {
 }
 
 .composer button:not(:disabled):hover {
-  transform: translateY(-1px);
-}
-
-.composer small {
-  font-size: 11px;
-  color: rgba(148, 163, 184, 0.75);
+  transform: translateY(-50%) scale(1.02);
 }
 
 @media (max-width: 700px) {

@@ -2,7 +2,7 @@
 import requests
 
 LLM_API_BASE = os.getenv('LLM_API_BASE', 'http://localhost:11434')
-LLM_MODEL = os.getenv('LLM_MODEL', 'qwen2.5:latest')
+LLM_MODEL = os.getenv('LLM_MODEL', 'qwen2.5:7b-instruct')
 LLM_TIMEOUT = float(os.getenv('LLM_TIMEOUT', '120'))
 
 

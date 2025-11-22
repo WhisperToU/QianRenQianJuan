@@ -1,5 +1,5 @@
 ﻿# Host: localhost  (Version: 5.7.26)
-# Date: 2025-11-21 23:06:25
+# Date: 2025-11-22 01:28:12
 # Generator: MySQL-Front 5.3  (Build 4.234)
 
 /*!40101 SET NAMES utf8 */;
@@ -29,7 +29,6 @@ CREATE TABLE `assigned_questions` (
 #
 
 /*!40000 ALTER TABLE `assigned_questions` DISABLE KEYS */;
-INSERT INTO `assigned_questions` VALUES (1,104,3,1,NULL,'2025-11-21 13:37:12',NULL,NULL);
 /*!40000 ALTER TABLE `assigned_questions` ENABLE KEYS */;
 
 #
@@ -51,7 +50,6 @@ CREATE TABLE `classes` (
 #
 
 /*!40000 ALTER TABLE `classes` DISABLE KEYS */;
-INSERT INTO `classes` VALUES (2,'2班',NULL,NULL),(4,'4班',NULL,NULL),(5,'5班',NULL,NULL);
 /*!40000 ALTER TABLE `classes` ENABLE KEYS */;
 
 #
@@ -105,23 +103,21 @@ CREATE TABLE `messages` (
 DROP TABLE IF EXISTS `questions`;
 CREATE TABLE `questions` (
   `question_id` int(11) NOT NULL AUTO_INCREMENT,
-  `difficulty_level` enum('easy','medium','difficult') CHARACTER SET utf8 DEFAULT NULL,
-  `topic` varchar(100) COLLATE utf8_unicode_ci DEFAULT NULL,
-  `topic_id` int(11) DEFAULT NULL,
+  `topic_id` int(11) NOT NULL,
+  `difficulty_level` enum('easy','medium','difficult') COLLATE utf8_unicode_ci DEFAULT NULL,
   `question_text` text COLLATE utf8_unicode_ci,
   `question_image` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
   `answer_text` text COLLATE utf8_unicode_ci,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `group_id` int(11) DEFAULT NULL,
-  PRIMARY KEY (`question_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=10 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+  PRIMARY KEY (`question_id`),
+  KEY `topic_id` (`topic_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 #
 # Data for table "questions"
 #
 
 /*!40000 ALTER TABLE `questions` DISABLE KEYS */;
-INSERT INTO `questions` VALUES (1,'easy','函数与图像',101,'已知函数 f(x) = 2x^2 - 4x + 3，判断其在区间 [-1, 3] 上的单调性，并说明理由。','https://via.placeholder.com/360x180?text=函数图像','函数为开口向上的抛物线，顶点在 x=1，区间 [-1,3] 包含顶点，需分区间分析。','2025-11-21 21:27:55',NULL),(2,'easy','函数与图像',101,'已知函数 f(x) = 2x^2 - 4x + 3，判断其在区间 [-1, 3] 上的单调性，并说明理由。','https://via.placeholder.com/360x180?text=函数图像','函数为开口向上的抛物线，顶点在 x=1，区间 [-1,3] 包含顶点，需分区间分析。','2025-11-21 22:13:43',NULL);
 /*!40000 ALTER TABLE `questions` ENABLE KEYS */;
 
 #
@@ -188,7 +184,6 @@ CREATE TABLE `students` (
 #
 
 /*!40000 ALTER TABLE `students` DISABLE KEYS */;
-INSERT INTO `students` VALUES (1,2,'王敬晨',2,NULL);
 /*!40000 ALTER TABLE `students` ENABLE KEYS */;
 
 #
@@ -209,7 +204,6 @@ CREATE TABLE `subject_groups` (
 #
 
 /*!40000 ALTER TABLE `subject_groups` DISABLE KEYS */;
-INSERT INTO `subject_groups` VALUES (1,'物理组',NULL),(2,'化学组',NULL),(3,'生物组',NULL);
 /*!40000 ALTER TABLE `subject_groups` ENABLE KEYS */;
 
 #
@@ -264,5 +258,4 @@ CREATE TABLE `users` (
 #
 
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (2,'王敬晨','scrypt:32768:8:1$lQZSAH0cxWx3SAgq$d4b14467ad5ddaa8434700126202502aa911fcb612f81e06bcef50c855b830fbfa80123b003ee5ea003d15e85fc73b6e03e5c0533b55ea66440441d6458c748b','2025-11-21 20:07:28',0,NULL,'teacher',NULL);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
