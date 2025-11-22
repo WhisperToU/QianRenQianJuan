@@ -119,12 +119,17 @@ def delete_conversation(conversation_id):
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
+            "DELETE FROM messages WHERE conversation_id=%s",
+            (conversation_id,)
+        )
+        cursor.execute(
             "DELETE FROM conversations WHERE conversation_id=%s AND user_id=%s",
             (conversation_id, user_id)
         )
-        conn.commit()
         if cursor.rowcount == 0:
+            conn.rollback()
             return jsonify({'error': '会话不存在或无权限'}), 404
+        conn.commit()
         return jsonify({'deleted': conversation_id})
     except Exception as exc:
         return jsonify({'error': str(exc)}), 500

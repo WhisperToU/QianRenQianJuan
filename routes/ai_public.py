@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 
-from routes.ai_service import generate_public_response
+from services.ai_service import generate_public_response
 
 ai_public_bp = Blueprint("ai_public", __name__)
 

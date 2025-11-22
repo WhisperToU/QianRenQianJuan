@@ -145,6 +145,19 @@ import AuthModal from './components/AuthModal.vue'
 import { apiFetch } from './utils/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+const CARD_TARGET_TO_TYPE = {
+  class: 'classes',
+  classes: 'classes',
+  student: 'classes',
+  question: 'questions',
+  questions: 'questions',
+  topic: 'topic',
+  topiccard: 'topic',
+  source_question: 'source_question',
+  sourcequestion: 'source_question',
+  assign: 'assign',
+  overview: 'overview'
+}
 
 const conversationCache = new Map()
 
@@ -540,10 +553,34 @@ function extractMessageText(result) {
   if (result.text) return result.text
   if (result.data) {
     if (typeof result.data === 'string') return result.data
+    if (result.data.message) return result.data.message
     if (result.data.text) return result.data.text
     return JSON.stringify(result.data, null, 2)
   }
   return ''
+}
+
+function resolveCardType(cardData) {
+  if (!cardData || typeof cardData !== 'object') return null
+  const explicitType = cardData.type
+  if (explicitType) return explicitType
+  const targetValue = (cardData.target ?? '').toString().trim().toLowerCase()
+  if (!targetValue) return null
+  const normalized = targetValue.replace(/\s+/g, '_')
+  return CARD_TARGET_TO_TYPE[normalized] || null
+}
+
+function buildCardPayload(cardData, cardType) {
+  const source = cardData || {}
+  const { type: rawType, fields, defaults, ...rest } = source
+  const normalizedDefaults = defaults ?? fields ?? {}
+  return {
+    type: cardType,
+    ...rest,
+    fields,
+    defaults: normalizedDefaults,
+    data: source
+  }
 }
 
 function touchConversation(label = '刚刚') {
@@ -551,25 +588,31 @@ function touchConversation(label = '刚刚') {
   if (convo) convo.updated = label
 }
 
-function opencard(messageId, action) {
-  const payload = action?.type
-    ? {
-        type: action.type,
-        ...(action.payload || action.data || {})
-      }
-    : null
+function opencard(messageId, action, fallbackText) {
+  const cardType = resolveCardType(action)
   const displayJson =
-    typeof action === 'string'
+    fallbackText ||
+    (typeof action === 'string'
       ? action
       : action
-        ? JSON.stringify(action, null, 2)
-        : '(来自 AI 的卡片响应)'
+        ? action.message || JSON.stringify(action, null, 2)
+        : '(来自 AI 的卡片响应)')
 
+  if (!cardType) {
+    updateMessage(messageId, {
+      text: displayJson,
+      payload: null
+    })
+    return
+  }
+
+  const payload = buildCardPayload(action, cardType)
   updateMessage(messageId, {
     text: displayJson,
     payload
   })
 }
+
 
 async function sendPrompt(prompt) {
   const payload = JSON.stringify({ prompt })
