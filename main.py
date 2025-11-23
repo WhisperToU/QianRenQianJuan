@@ -29,4 +29,4 @@ app.register_blueprint(conversations_bp, url_prefix="/conversations")
 app.register_blueprint(auth_bp, url_prefix="/auth")
 
 if __name__ == "__main__":
-  app.run(debug=True, port=5000)
+  app.run(debug=True, port=5000, use_reloader=False)

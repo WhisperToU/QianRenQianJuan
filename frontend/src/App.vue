@@ -1,21 +1,19 @@
 <template>
   <div class="chat-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+    <!-- 侧边栏 -->
     <aside v-if="!sidebarCollapsed" class="sidebar">
       <div class="sidebar-top">
         <div class="sidebar-controls">
-          <button
-            class="collapse-toggle"
-            type="button"
-            @click="toggleSidebar"
-            aria-label="关闭侧边栏"
-          >
+          <button class="collapse-toggle" type="button" @click="toggleSidebar" aria-label="关闭侧边栏">
             <span class="icon">✖</span>
           </button>
           <button class="new-chat" type="button" @click="startNewConversation" aria-label="新对话">
             <span>+</span>
           </button>
         </div>
+
         <div class="conversation-label">会话记录</div>
+
         <div class="conversation-list">
           <div
             v-for="conversation in conversations"
@@ -31,73 +29,51 @@
             >
               ✖
             </button>
-            <button
-              class="conversation-link"
-              type="button"
-              @click="selectConversation(conversation.id)"
-            >
+
+            <button class="conversation-link" type="button" @click="selectConversation(conversation.id)">
               <span>{{ conversation.title }}</span>
               <small>{{ conversation.updated }}</small>
             </button>
           </div>
         </div>
       </div>
+
       <div class="sidebar-bottom">
         <template v-if="isAuthenticated">
           <div class="account-row">
             <div class="avatar-chip">
-              <span>{{ sidebarProfile.avatarFallback || (sidebarProfile.name?.slice(-1) ?? '？') }}</span>
+              <span>{{ sidebarProfile.avatarFallback }}</span>
             </div>
-            <button type="button" class="logout-btn" @click="handleAuthButtonClick">
-              退出登录
-            </button>
+            <button type="button" class="logout-btn" @click="handleAuthButtonClick">退出登录</button>
           </div>
         </template>
+
         <template v-else>
-          <button type="button" class="login-btn" @click="handleAuthButtonClick">
-            登录账号
-          </button>
+          <button type="button" class="login-btn" @click="handleAuthButtonClick">登录账号</button>
         </template>
       </div>
     </aside>
+
+    <!-- 折叠侧边栏 -->
     <div v-else class="sidebar-rail">
-      <button
-        type="button"
-        class="rail-btn"
-        aria-label="展开菜单"
-        @click="toggleSidebar"
-      >
-        ☰
-      </button>
-      <button
-        type="button"
-        class="rail-btn rail-new"
-        aria-label="新对话"
-        @click="startNewConversation"
-      >
-        +
-      </button>
+      <button type="button" class="rail-btn" aria-label="展开菜单" @click="toggleSidebar">☰</button>
+      <button type="button" class="rail-btn rail-new" aria-label="新对话" @click="startNewConversation">+</button>
       <button
         type="button"
         class="rail-avatar"
         :title="sidebarProfile.name"
-        :aria-label="isAuthenticated ? `${sidebarProfile.name} 的头像` : '游客头像'"
         @click="toggleSidebar"
       >
-        <div
-          class="avatar"
-          :class="{ 'avatar-image': !!sidebarProfile.avatarUrl, 'avatar-guest': !sidebarProfile.avatarUrl }"
-        >
-          <img
-            v-if="sidebarProfile.avatarUrl"
-            :src="sidebarProfile.avatarUrl"
-            :alt="sidebarProfile.name"
-          />
-          <span v-else>{{ sidebarProfile.avatarFallback || '客' }}</span>
+        <div class="avatar avatar-image" v-if="sidebarProfile.avatarUrl">
+          <img :src="sidebarProfile.avatarUrl" :alt="sidebarProfile.name" />
+        </div>
+        <div class="avatar avatar-guest" v-else>
+          <span>{{ sidebarProfile.avatarFallback }}</span>
         </div>
       </button>
     </div>
 
+    <!-- 主界面 -->
     <main class="chat-surface">
       <header class="surface-header">
         <h1>教学助手</h1>
@@ -110,14 +86,15 @@
       <div class="composer">
         <form @submit.prevent="submit">
           <div class="composer-field">
-<textarea
-            ref="composerRef"
-            v-model="input"
-            placeholder="询问任何问题"
-            @keydown="handleComposerKeydown"
-            @input="adjustComposerHeight"
-            rows="1"
-          ></textarea>
+            <textarea
+              ref="composerRef"
+              v-model="input"
+              placeholder="询问任何问题"
+              @keydown="handleComposerKeydown"
+              @input="adjustComposerHeight"
+              rows="1"
+            ></textarea>
+
             <button type="submit" :disabled="!input.trim() || isThinking" aria-label="发送消息">
               <span aria-hidden="true">✈</span>
             </button>
@@ -125,6 +102,7 @@
         </form>
       </div>
 
+      <!-- 登录窗口 -->
       <AuthModal
         v-if="showAuth"
         :mode="authMode"
@@ -139,175 +117,167 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, nextTick } from 'vue'
-import MessageList from './components/MessageList.vue'
-import AuthModal from './components/AuthModal.vue'
-import { apiFetch } from './utils/api'
+/* ---------------- imports ---------------- */
+import { computed, ref, watch, nextTick } from 'vue';
+import MessageList from './components/MessageList.vue';
+import AuthModal from './components/AuthModal.vue';
+import { apiFetch } from './utils/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
-const CARD_TARGET_TO_TYPE = {
-  class: 'classes',
-  classes: 'classes',
-  student: 'classes',
-  question: 'questions',
-  questions: 'questions',
-  topic: 'topic',
-  topiccard: 'topic',
-  source_question: 'source_question',
-  sourcequestion: 'source_question',
-  assign: 'assign',
-  overview: 'overview'
-}
+/* ---------------- 基础状态 ---------------- */
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const conversationCache = new Map();
 
-const conversationCache = new Map()
+const currentUser = ref(null);
+const showAuth = ref(false);
+const authMode = ref('login');
+const authLoading = ref(false);
+const authError = ref('');
+
+const isThinking = ref(false);
+const composerRef = ref(null);
 
 const guestProfile = {
   name: '游客用户',
   status: '未登录',
-  avatarFallback: '客',
-  avatarUrl: ''
-}
+  avatarFallback: '客'
+};
 
-const currentUser = ref(null)
-const showAuth = ref(false)
-const authMode = ref('login')
-const authLoading = ref(false)
-const authError = ref('')
-const isThinking = ref(false)
-const composerRef = ref(null)
 const sidebarProfile = computed(() => {
-  if (!currentUser.value) {
-    return { ...guestProfile }
-  }
-  const name = currentUser.value.name ?? '已登录用户'
+  if (!currentUser.value) return guestProfile;
+  const name = currentUser.value.name ?? '';
   return {
     name,
-    status: currentUser.value.status ?? '已登录',
-    avatarFallback: currentUser.value.avatarFallback ?? (name.trim() ? name.trim().slice(-1) : '客'),
-    avatarUrl: currentUser.value.avatarUrl ?? ''
-  }
-})
-const isAuthenticated = computed(() => Boolean(currentUser.value))
+    avatarUrl: currentUser.value.avatarUrl || '',
+    avatarFallback: (name.trim()?.slice(-1)) || '客'
+  };
+});
 
-const conversations = ref([])
-const selectedConversation = ref(null)
-const messages = ref([])
-const input = ref('')
-const sidebarCollapsed = ref(true)
+const isAuthenticated = computed(() => Boolean(currentUser.value));
 
-let messageId = 0
-let greetingTimer = null
+/* ---------------- 会话 ---------------- */
+const conversations = ref([]);
+const selectedConversation = ref(null);
+const messages = ref([]);
+const input = ref('');
+const sidebarCollapsed = ref(true);
 
+let messageId = 0;
+let greetingTimer = null;
+
+/* ---------------- 登录变化监听 ---------------- */
 watch(isAuthenticated, (logged, prev) => {
   if (prev !== undefined && logged !== prev) {
-    scheduleGreeting()
-    if (logged) {
-      sidebarCollapsed.value = true
-    }
-    if (logged) {
-      loadConversations()
-    } else {
-      conversations.value = []
-      selectedConversation.value = null
+    scheduleGreeting();
+    if (logged) sidebarCollapsed.value = true;
+    if (logged) loadConversations();
+    else {
+      conversations.value = [];
+      selectedConversation.value = null;
     }
   }
-}, { immediate: true })
+}, { immediate: true });
 
-loadConversations().catch(() => {})
+loadConversations();
 
+/* ---------------- 加载会话 ---------------- */
 async function loadConversations() {
   if (!isAuthenticated.value) {
-    conversations.value = []
-    selectedConversation.value = null
-    return
+    conversations.value = [];
+    selectedConversation.value = null;
+    return;
   }
+
   try {
-    const data = await apiFetch('/conversations/list')
+    const data = await apiFetch('/conversations/list');
     conversations.value = (data || []).map((item) => ({
       id: item.conversation_id,
       title: item.title,
       updated: item.updated_at
-    }))
+    }));
+
     if (!selectedConversation.value && conversations.value.length) {
-      selectConversation(conversations.value[0].id, { reset: true })
+      selectConversation(conversations.value[0].id, { reset: true });
     }
-    if (!conversations.value.length) {
-      await startNewConversation()
-    }
+
+    if (!conversations.value.length) await startNewConversation();
   } catch (error) {
-    console.error('加载会话失败', error)
-    conversations.value = []
-    selectedConversation.value = null
+    console.error('加载会话失败', error);
   }
 }
 
+/* ---------------- 加载消息 ---------------- */
 async function loadMessages(conversationId) {
-  if (!isAuthenticated.value || !conversationId) {
-    return
-  }
+  if (!isAuthenticated.value || !conversationId) return;
+
   try {
-    const data = await apiFetch(`/conversations/${conversationId}/messages`)
-    const mapped = (data || []).map((item) => ({
+    const data = await apiFetch(`/conversations/${conversationId}/messages`);
+
+    messages.value = (data || []).map((item) => ({
       id: item.message_id,
       role: item.sender === 'user' ? 'user' : 'assistant',
       text: item.content,
+      payload: null,
       timestamp: item.timestamp
-    }))
-    messages.value = mapped
-    conversationCache.set(conversationId, mapped)
+    }));
+
+    conversationCache.set(conversationId, messages.value);
   } catch (error) {
-    console.error('加载消息失败', error)
+    console.error('加载消息失败', error);
   }
 }
 
+/* ---------------- 初始化新对话 ---------------- */
 function initConversation(id) {
-  messages.value = []
-  conversationCache.set(id, messages.value)
-  scheduleGreeting()
+  messages.value = [];
+  conversationCache.set(id, messages.value);
+  scheduleGreeting();
 }
 
+/* ---------------- 问候语 ---------------- */
 function scheduleGreeting() {
-  if (greetingTimer) {
-    clearTimeout(greetingTimer)
-  }
+  if (greetingTimer) clearTimeout(greetingTimer);
+
   greetingTimer = setTimeout(() => {
-    const isLogged = isAuthenticated.value
-    const targetText = isLogged
+    const isLogged = isAuthenticated.value;
+    const text = isLogged
       ? `${currentUser.value?.name || '老师'}，您好`
-      : '请登录以继续使用教学助手'
-    pushMessage('assistant', targetText)
-    greetingTimer = null
-  }, 800)
+      : '请登录以继续使用教学助手';
+    pushMessage('assistant', text);
+    greetingTimer = null;
+  }, 800);
 }
 
-
+/* ---------------- 侧边栏 ---------------- */
 function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value
+  sidebarCollapsed.value = !sidebarCollapsed.value;
 }
 
+/* ---------------- 登录模块 ---------------- */
 function openAuth(mode = 'login') {
-  authMode.value = mode
-  authError.value = ''
-  showAuth.value = true
+  authMode.value = mode;
+  authError.value = '';
+  showAuth.value = true;
 }
 
 async function handleAuthButtonClick() {
   if (isAuthenticated.value) {
-    await logout()
-    return
+    await logout();
+    return;
   }
-  openAuth('login')
+  openAuth('login');
 }
 
 function closeAuth() {
-  showAuth.value = false
-  authError.value = ''
+  showAuth.value = false;
+  authError.value = '';
 }
 
 async function handleAuthSubmit(payload) {
-  const { mode, identifier, password, school_name, group_name } = payload
-  authError.value = ''
-  authLoading.value = true
+  const { mode, identifier, password, school_name, group_name } = payload;
+
+  authError.value = '';
+  authLoading.value = true;
+
   try {
     const resp = await fetch(`${API_BASE_URL}/auth/${mode}`, {
       method: 'POST',
@@ -318,322 +288,305 @@ async function handleAuthSubmit(payload) {
         school_name,
         group_name
       })
-    })
-    const data = await resp.json()
-    if (!resp.ok) {
-      throw new Error(data?.error || '请求失败')
-    }
-    if (!data?.user) {
-      throw new Error('未返回用户信息')
-    }
-    if (data.token) {
-      localStorage.setItem('auth_token', data.token)
-    }
+    });
+
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data?.error || '请求失败');
+
+    if (data.token) localStorage.setItem('auth_token', data.token);
+
     currentUser.value = {
-      name: data.user.username || identifier || '已登录用户',
+      name: data.user.username,
+      avatarUrl: data.user.avatarUrl,
       status: '已登录',
       ...data.user
-    }
-    showAuth.value = false
+    };
+
+    showAuth.value = false;
   } catch (error) {
-    authError.value = error?.message || '登录/注册失败'
+    authError.value = error?.message || '登录失败';
   } finally {
-    authLoading.value = false
+    authLoading.value = false;
   }
 }
 
 async function logout() {
-  await persistCurrentConversation()
-  localStorage.removeItem('auth_token')
-  currentUser.value = null
-  authMode.value = 'login'
-  authError.value = ''
-  showAuth.value = false
-  conversations.value = []
-  selectedConversation.value = null
-  messages.value = []
-  conversationCache.clear()
+  localStorage.removeItem('auth_token');
+  currentUser.value = null;
+  conversations.value = [];
+  selectedConversation.value = null;
+  messages.value = [];
+  conversationCache.clear();
 }
 
-async function persistCurrentConversation() {
-  if (!isAuthenticated.value) return
-  const currentId = selectedConversation.value
-  if (!currentId) return
-  const currentConv = conversations.value.find((c) => c.id === currentId)
-  if (!currentConv) return
-  try {
-    await apiFetch(`/conversations/${currentId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ title: currentConv.title || '新对话' })
-    })
-  } catch (error) {
-    console.error('保存当前会话失败', error)
-  }
-}
-
+/* ---------------- 创建/删除 会话 ---------------- */
 async function startNewConversation() {
   if (isAuthenticated.value) {
-    await createConversation()
-    return
-  }
-  const id = Date.now()
-  conversations.value.unshift({
-    id,
-    title: `新对话 ${conversations.value.length + 1}`,
-    updated: '刚刚'
-  })
-  selectConversation(id, { reset: true })
-}
-async function createConversation() {
-  try {
     const resp = await apiFetch('/conversations/', {
       method: 'POST',
       body: JSON.stringify({ title: '新对话' })
-    })
+    });
+
     const newConversation = {
       id: resp.conversation_id,
       title: resp.title,
       updated: new Date().toISOString()
-    }
-    conversations.value.unshift(newConversation)
-    selectConversation(newConversation.id, { reset: true })
-  } catch (error) {
-    console.error('新建会话失败', error)
-    startNewConversation()
+    };
+
+    conversations.value.unshift(newConversation);
+    selectConversation(newConversation.id, { reset: true });
+    return;
   }
+
+  const id = Date.now();
+  conversations.value.unshift({
+    id,
+    title: `新对话 ${conversations.value.length + 1}`,
+    updated: '刚刚'
+  });
+  selectConversation(id, { reset: true });
 }
 
 async function removeConversation(id) {
-  if (!id) return
-  const idx = conversations.value.findIndex((c) => c.id === id)
-  if (idx === -1) return
-  const wasSelected = selectedConversation.value === id
+  const idx = conversations.value.findIndex((c) => c.id === id);
+  if (idx === -1) return;
+
   if (isAuthenticated.value) {
-    try {
-      await apiFetch(`/conversations/${id}`, {
-        method: 'DELETE'
-      })
-    } catch (error) {
-      console.error('删除会话失败', error)
-    }
+    await apiFetch(`/conversations/${id}`, { method: 'DELETE' });
   }
-  conversations.value.splice(idx, 1)
-  if (!wasSelected) return
-  if (conversations.value.length) {
-    selectConversation(conversations.value[Math.max(0, idx - 1)].id, { reset: true })
-  } else {
-    await startNewConversation()
+
+  const wasSelected = selectedConversation.value === id;
+  conversations.value.splice(idx, 1);
+
+  if (wasSelected) {
+    if (conversations.value.length) selectConversation(conversations.value[0].id, { reset: true });
+    else await startNewConversation();
   }
 }
 
+/* ---------------- 选择会话 ---------------- */
 function selectConversation(id, { reset = false } = {}) {
-  if (selectedConversation.value === id && !reset) return
+  if (selectedConversation.value === id && !reset) return;
+
   if (selectedConversation.value !== null) {
-    conversationCache.set(selectedConversation.value, messages.value)
+    conversationCache.set(selectedConversation.value, messages.value);
   }
-  selectedConversation.value = id
+
+  selectedConversation.value = id;
+
   if (isAuthenticated.value) {
-    loadMessages(id)
-    return
+    loadMessages(id);
+    return;
   }
-  if (!reset && conversationCache.has(id)) {
-    messages.value = conversationCache.get(id)
-  } else {
-    initConversation(id)
-  }
+
+  if (!reset && conversationCache.has(id)) messages.value = conversationCache.get(id);
+  else initConversation(id);
 }
 
-function pushMessage(role, text, payload) {
-  const id = ++messageId
+/* ---------------- 聊天消息操作 ---------------- */
+function pushMessage(role, text, payload = null) {
+  const id = ++messageId;
   messages.value = [
     ...messages.value,
-    {
-      id,
-      role,
-      text,
-      payload
-    }
-  ]
+    { id, role, text, payload }
+  ];
+
   if (selectedConversation.value !== null) {
-    conversationCache.set(selectedConversation.value, messages.value)
+    conversationCache.set(selectedConversation.value, messages.value);
   }
-  return id
+
+  return id;
 }
 
 function updateMessage(id, partial) {
-  messages.value = messages.value.map((msg) =>
+  messages.value = messages.value.map(msg =>
     msg.id === id ? { ...msg, ...partial } : msg
-  )
+  );
 }
 
+/* ---------------- 输入框 ---------------- */
 function submit() {
-  if (!input.value.trim()) return
-  handlePrompt(input.value.trim())
-  input.value = ''
-  nextTick(() => resetComposerHeight())
+  if (!input.value.trim()) return;
+  handlePrompt(input.value.trim());
+  input.value = '';
+  nextTick(() => resetComposerHeight());
 }
 
 function handleComposerKeydown(event) {
   if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    submit()
+    event.preventDefault();
+    submit();
   }
 }
 
 function adjustComposerHeight() {
-  const el = composerRef.value
-  if (!el) return
-  el.style.height = 'auto'
-  const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 20
-  const maxHeight = lineHeight * 5
-  const targetHeight = Math.min(el.scrollHeight, maxHeight)
-  el.style.height = `${targetHeight}px`
-  el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  const el = composerRef.value;
+  if (!el) return;
+
+  el.style.height = 'auto';
+  const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 20;
+  const maxHeight = lineHeight * 5;
+  const targetHeight = Math.min(el.scrollHeight, maxHeight);
+
+  el.style.height = `${targetHeight}px`;
+  el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
 }
 
 function resetComposerHeight() {
-  const el = composerRef.value
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.overflowY = 'hidden'
+  const el = composerRef.value;
+  if (!el) return;
+
+  el.style.height = 'auto';
+  el.style.overflowY = 'hidden';
 }
 
+/* ---------------- 聊天主流程 ---------------- */
 async function handlePrompt(prompt) {
-  pushMessage('user', prompt)
-  touchConversation()
-  sendMessageToBackend('user', prompt)
-  await respond(prompt)
+  pushMessage('user', prompt);
+  touchConversation();
+  sendMessageToBackend('user', prompt);
+  await respond(prompt);
 }
 
 async function respond(prompt) {
-  if (isThinking.value) return
-  isThinking.value = true
-  const placeholderId = pushMessage('assistant', '正在生成回复…', { loading: true })
-  touchConversation('处理中')
+  if (isThinking.value) return;
+
+  isThinking.value = true;
+  const placeholderId = pushMessage('assistant', '正在生成回复...', { loading: true });
+  touchConversation('处理中');
+
   try {
-    const result = await sendPrompt(prompt)
-    const mode = result?.mode || 'chat'
-    const aiText = extractMessageText(result)
-    if (mode === 'card' && result?.data) {
-      opencard(placeholderId, result.data, aiText)
-      touchConversation('卡片')
-    } else {
-      const outputText = aiText || '(空响应)'
-      updateMessage(placeholderId, {
-        text: outputText,
-        payload: null
-      })
-      touchConversation('刚刚')
+    const result = await sendPrompt(prompt);
+    const mode = result?.mode || 'chat';
+
+    if (mode === 'chat') {
+      updateMessage(placeholderId, { text: result.text, payload: null });
+      touchConversation('刚刚');
+      return;
     }
-    sendMessageToBackend('ai', aiText)
-  } catch (error) {
-      updateMessage(placeholderId, {
-        text: `生成时出错：${error?.message || error}`,
-        payload: { error: true }
-      })
-      touchConversation('失败')
-    } finally {
-      isThinking.value = false
-    }
+
+    /* ---------------- CRUD 卡片模式 ---------------- */
+    const payload = normalizeCrudPayload(result.data || {});
+    console.log("DEBUG payload from AI:", payload);
+    const messageText =
+      payload.message ||
+      result.text ||
+      '(来自 AI 的卡片响应)';
+
+    const type = normalizeCardType(payload.target || payload.type);
+
+    // 修改消息，使其包含卡片
+    updateMessage(placeholderId, {
+      text: messageText,
+      payload: {
+        type,
+        ...payload
+      }
+    });
+
+    touchConversation('卡片');
+  } catch (err) {
+    updateMessage(placeholderId, {
+      text: `生成时出错：${err?.message || err}`,
+      payload: { error: true }
+    });
+  } finally {
+    isThinking.value = false;
+  }
 }
 
+/* ---------------- 辅助函数 ---------------- */
 function sendMessageToBackend(role, text) {
-  if (!isAuthenticated.value || !selectedConversation.value || !text) return
+  if (!isAuthenticated.value || !selectedConversation.value || !text) return;
+
   apiFetch(`/conversations/${selectedConversation.value}/messages`, {
     method: 'POST',
     body: JSON.stringify({ sender: role, content: text })
-  }).catch((error) => {
-    console.error('保存消息失败', error)
-  })
-}
-
-function extractMessageText(result) {
-  if (!result) return ''
-  if (typeof result === 'string') return result
-  if (result.text) return result.text
-  if (result.data) {
-    if (typeof result.data === 'string') return result.data
-    if (result.data.message) return result.data.message
-    if (result.data.text) return result.data.text
-    return JSON.stringify(result.data, null, 2)
-  }
-  return ''
-}
-
-function resolveCardType(cardData) {
-  if (!cardData || typeof cardData !== 'object') return null
-  const explicitType = cardData.type
-  if (explicitType) return explicitType
-  const targetValue = (cardData.target ?? '').toString().trim().toLowerCase()
-  if (!targetValue) return null
-  const normalized = targetValue.replace(/\s+/g, '_')
-  return CARD_TARGET_TO_TYPE[normalized] || null
-}
-
-function buildCardPayload(cardData, cardType) {
-  const source = cardData || {}
-  const { type: rawType, fields, defaults, ...rest } = source
-  const normalizedDefaults = defaults ?? fields ?? {}
-  return {
-    type: cardType,
-    ...rest,
-    fields,
-    defaults: normalizedDefaults,
-    data: source
-  }
+  });
 }
 
 function touchConversation(label = '刚刚') {
-  const convo = conversations.value.find((c) => c.id === selectedConversation.value)
-  if (convo) convo.updated = label
+  const c = conversations.value.find(c => c.id === selectedConversation.value);
+  if (c) c.updated = label;
 }
 
-function opencard(messageId, action, fallbackText) {
-  const cardType = resolveCardType(action)
-  const displayJson =
-    fallbackText ||
-    (typeof action === 'string'
-      ? action
-      : action
-        ? action.message || JSON.stringify(action, null, 2)
-        : '(来自 AI 的卡片响应)')
+function normalizeCardType(str) {
+  if (!str) return '';
+  return str.trim().toLowerCase().replace(/\s+/g, '_');
+}
 
-  if (!cardType) {
-    updateMessage(messageId, {
-      text: displayJson,
-      payload: null
-    })
-    return
+function buildQuestionPreview(fields = {}) {
+  const pick = (...keys) => {
+    for (const key of keys) {
+      const value = fields[key];
+      if (value !== undefined && value !== null && value !== '') {
+        return value;
+      }
+    }
+    return '';
+  };
+
+  const normalizeDifficulty = (value) => {
+    if (!value) return 'medium';
+    const text = String(value).toLowerCase();
+    if (text.includes('easy') || text.includes('简单')) return 'easy';
+    if (text.includes('hard') || text.includes('difficult') || text.includes('难')) return 'difficult';
+    return 'medium';
+  };
+
+  return {
+    question: pick('question_text', 'question', 'content'),
+    answer: pick('answer_text', 'answer'),
+    topic: pick('topic', 'topic_name'),
+    topic_id: fields.topic_id ?? null,
+    difficulty: normalizeDifficulty(pick('difficulty_level', 'difficulty')),
+    type: fields.type || 'question',
+    duration: fields.duration,
+    imageUrl: pick('question_image', 'imageUrl')
+  };
+}
+
+function normalizeCrudPayload(payload = {}) {
+  if (!payload || typeof payload !== 'object') return {};
+  const normalized = { ...payload };
+  normalized.fields = normalized.fields || {};
+  normalized.defaults = normalized.defaults || normalized.fields;
+
+  if (normalizeCardType(normalized.target || normalized.type) === 'question') {
+    normalized.questions = Array.isArray(normalized.questions) && normalized.questions.length
+      ? normalized.questions
+      : [buildQuestionPreview(normalized.fields)];
+    normalized.topicOptions = normalized.topicOptions || [];
   }
 
-  const payload = buildCardPayload(action, cardType)
-  updateMessage(messageId, {
-    text: displayJson,
-    payload
-  })
+  return normalized;
 }
 
-
+/* ---------------- AI 请求 ---------------- */
 async function sendPrompt(prompt) {
-  const payload = JSON.stringify({ prompt })
+  const payload = JSON.stringify({ prompt });
+
   if (isAuthenticated.value) {
     return apiFetch('/ai/secure/generate', {
       method: 'POST',
       body: payload
-    })
+    });
   }
+
   const resp = await fetch(`${API_BASE_URL}/ai/public/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: payload
-  })
-  const data = await resp.json().catch(() => ({}))
-  if (!resp.ok) {
-    throw new Error(data.error || '请求失败')
-  }
-  return { mode: 'chat', text: data.text }
+  });
+
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || '请求失败');
+
+  return { mode: 'chat', text: data.text };
 }
 </script>
+
+
 <style scoped>
 .chat-shell {
   min-height: 100vh;
