@@ -25,7 +25,6 @@ def list_students():
 @students_bp.route("/by_class", methods=["GET"])
 @auth_required
 def list_by_class():
-    from flask import request
     class_id = request.args.get("class_id")
 
     if not class_id:
